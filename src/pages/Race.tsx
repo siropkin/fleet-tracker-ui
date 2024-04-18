@@ -1,55 +1,50 @@
-import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSuspense } from '@data-client/react';
-import { Cartesian3, Color, PolylineDashMaterialProperty } from 'cesium';
-import { Viewer, Entity, PolylineGraphics, CameraFlyTo } from 'resium';
+import { Color, PolylineArrowMaterialProperty } from 'cesium';
+import { Viewer, CameraFlyTo, Entity } from 'resium';
 
-import { RaceSetupResource } from '@resources/RaceSetup';
+import { RaceSetupResource, CourseNode } from '@resources/RaceSetup';
 
-const raceNodesMaterial = new PolylineDashMaterialProperty({ color: Color.CYAN });
-const pointGraphics = { pixelSize: 10 };
+const courseMainNodeGraphics = { pixelSize: 5 };
+
+const courseNodesMaterial = new PolylineArrowMaterialProperty(
+    Color.fromCssColorString("#2bb3c0")
+);
+const courseNodesWidth = 10.0;
 
 const Race = () => {
     const { id } = useParams();
-    const raceSetup = useSuspense(RaceSetupResource.get, { id });
+    const raceSetup = useSuspense(RaceSetupResource.get, { id: `${id}` });
 
-    const raceStartPosition = useMemo(
-        () => {
-            const startNode = raceSetup?.course?.nodes?.find((node: { name: string; }) => node.name === "Start");
-            if (!startNode) {
-                return undefined;
-            }
-            return Cartesian3.fromDegrees(startNode.lon, startNode.lat, 100);
-        },
-        [raceSetup?.course?.nodes],
-    );
-
-    const raceTrackPositions = useMemo(
-        () => {
-            const coordinates = raceSetup?.course?.nodes?.flatMap((node: { lon: number; lat: number; }) => [node.lon, node.lat]);
-            if (!coordinates?.length) {
-                return undefined;
-            }
-            return Cartesian3.fromDegreesArray(coordinates);
-        },
-        [raceSetup?.course?.nodes],
-    );
+    const courseNodes = raceSetup.courseNodes();
+    const courseMainNodes = raceSetup.courseMainNodes();
+    const courseStartNode = raceSetup.courseStartNode();
 
     return (
         <Viewer id="root" full>
-            <CameraFlyTo duration={0} destination={raceStartPosition} />
-            <Entity
-                name="Race Track"
-                description="Race Track"
-                position={raceStartPosition}
-                point={pointGraphics}
-            >
-                <PolylineGraphics
-                    positions={raceTrackPositions}
-                    width={4}
-                    material={raceNodesMaterial}
+            {courseMainNodes.map((point: CourseNode) => (
+                <Entity
+                    key={point.pk()}
+                    name={point.name}
+                    position={point.toCartesian3(100)}
+                    point={courseMainNodeGraphics}
                 />
-            </Entity>
+            ))}
+
+            <Entity
+                polyline={{
+                    positions: courseNodes.map((point: CourseNode) => point.toCartesian3(100)),
+                    material: courseNodesMaterial,
+                    width: courseNodesWidth,
+                }}
+            />
+
+            {courseStartNode && (
+                <CameraFlyTo
+                    duration={5}
+                    destination={courseStartNode.toCartesian3(100000)}
+                />
+            )}
         </Viewer>
     )
 };
