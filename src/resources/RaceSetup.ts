@@ -1,7 +1,7 @@
 import { Entity, createResource } from '@data-client/rest';
 import { Cartesian3 } from 'cesium';
 
-const API_BASE_URL = "http://localhost:5000/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export class CourseNode extends Entity {
     name: string | undefined = undefined;
@@ -67,7 +67,7 @@ export class RaceSetup extends Entity {
 }
 
 export const RaceSetupResource = createResource({
-    urlPrefix: `${API_BASE_URL}/races`,
+    urlPrefix: `${API_BASE_URL}/v1/races`,
     path: '/:id/setup',
     schema: RaceSetup,
 });
