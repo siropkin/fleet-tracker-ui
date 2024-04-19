@@ -12,7 +12,7 @@ export class CourseNode extends Entity {
         return [this.name, this.lat, this.lon].filter(Boolean).join(',');
     }
 
-    toCartesian3(height: number): Cartesian3 {
+    toCartesian3(height: number | undefined = undefined): Cartesian3 {
         return Cartesian3.fromDegrees(this.lon, this.lat, height);
     }
 }
@@ -184,10 +184,6 @@ export class RaceSetup extends Entity {
 
     courseDistance(): number {
         return this.course.distance;
-    }
-
-    teamInfo(id: number): Team | undefined {
-        return this.teams.find((team: Team) => team.id === id);
     }
 
     static schema = {

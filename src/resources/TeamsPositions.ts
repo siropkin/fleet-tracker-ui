@@ -14,7 +14,7 @@ export class Moment extends Entity {
         return `${this.at}`;
     }
 
-    toCartesian3(height: number): Cartesian3 {
+    toCartesian3(height: number | undefined = undefined): Cartesian3 {
         return Cartesian3.fromDegrees(this.lon, this.lat, height);
     }
 }
@@ -27,11 +27,7 @@ export class TeamPosition extends Entity {
         return `${this.id}`;
     }
 
-    teamId(): number {
-        return this.id;
-    }
-
-    closestMoment(at: number): Moment {
+    closestPosition(at: number): Moment {
         return this.moments.reduce((acc: Moment, moment: Moment) => {
             if (Math.abs(moment.at - at) < Math.abs(acc.at - at)) {
                 return moment;
