@@ -45,7 +45,7 @@ export class TeamPosition extends Entity {
 }
 
 export const TeamsPositionsResource = createResource({
-    urlPrefix: `${API_BASE_URL}/v1/races`,
+    urlPrefix: `${API_BASE_URL}/api/v1/races`,
     path: '/:id/teams-positions-all',
     schema: [TeamPosition],
 });

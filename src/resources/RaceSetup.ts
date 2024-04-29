@@ -199,7 +199,7 @@ export class RaceSetup extends Entity {
 }
 
 export const RaceSetupResource = createResource({
-    urlPrefix: `${API_BASE_URL}/v1/races`,
+    urlPrefix: `${API_BASE_URL}/api/v1/races`,
     path: '/:id/setup',
     schema: RaceSetup,
 });
