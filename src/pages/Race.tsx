@@ -32,6 +32,7 @@ const Race = () => {
     const courseNodes = useMemo(() => raceSetup.courseNodes(), [raceSetup]);
     const courseMainNodes = useMemo(() => raceSetup.courseMainNodes(), [raceSetup]);
     const courseStartNode = useMemo(() => raceSetup.courseStartNode(), [raceSetup]);
+    const cameraDestination = useMemo(() => courseStartNode.toCartesian3(100000), [courseStartNode]);
 
     console.log(teamsPositions[0]);
     return (
@@ -64,7 +65,8 @@ const Race = () => {
 
             <CameraFlyTo
                 duration={5}
-                destination={courseStartNode.toCartesian3(100000)}
+                destination={cameraDestination}
+                once
             />
 
             {courseMainNodes.map((point: CourseNode) => (
@@ -85,6 +87,9 @@ const Race = () => {
             />
 
             {raceSetup.teams.map((team: Team) => {
+                if (team.id !== 2) {
+                    return null;
+                }
                 const teamPositions = teamsPositions.find((position: TeamPosition) => position.id === team.id);
                 if (!teamPositions) {
                     return null;
