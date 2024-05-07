@@ -11,6 +11,7 @@ export default defineConfig({
       '@components': path.resolve(__dirname, './src/components'),
       '@pages': path.resolve(__dirname, './src/pages'),
       '@resources': path.resolve(__dirname, './src/resources'),
+      '@classes': path.resolve(__dirname, './src/classes'),
     },
   },
   plugins: [react(),cesium()],

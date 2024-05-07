@@ -1,7 +1,14 @@
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSuspense } from '@data-client/react';
-import { Color, PolylineArrowMaterialProperty, Resource, Transforms } from 'cesium';
-import { Viewer, CameraFlyTo, Entity, Globe, Model } from 'resium';
+import {
+    ClockRange,
+    ClockStep,
+    Color,
+    PolylineArrowMaterialProperty,
+    Resource,
+} from 'cesium';
+import { Viewer, CameraFlyTo, Entity, Globe, Model, Clock } from 'resium';
 
 import { RaceSetupResource, CourseNode, Team } from '@resources/RaceSetup';
 import { TeamsPositionsResource, TeamPosition } from '@resources/TeamsPositions';
@@ -20,21 +27,40 @@ const Race = () => {
     const raceSetup = useSuspense(RaceSetupResource.get, { id: `${id}` });
     const teamsPositions = useSuspense(TeamsPositionsResource.get, { id: `${id}` });
 
-    const courseNodes = raceSetup.courseNodes();
-    const courseMainNodes = raceSetup.courseMainNodes();
-    const courseStartNode = raceSetup.courseStartNode();
+    // TODO: For race nodes use race.poi.lines instead of raceSetup.courseNodes()
 
+    const courseNodes = useMemo(() => raceSetup.courseNodes(), [raceSetup]);
+    const courseMainNodes = useMemo(() => raceSetup.courseMainNodes(), [raceSetup]);
+    const courseStartNode = useMemo(() => raceSetup.courseStartNode(), [raceSetup]);
+
+    console.log(teamsPositions[0]);
     return (
         <Viewer
             id={id}
-            full
             geocoder={false} // search bar
             homeButton={false} // home button
             navigationHelpButton={false} // navigation help
             // sceneModePicker={false} // 3D/2D
             // baseLayerPicker={false} // map type
+            full
+            onUpdate={(...args) => {
+                console.log('onUpdate', args);
+            }}
         >
             <Globe enableLighting />
+
+            <Clock
+                startTime={raceSetup.start.toJulianDate()}
+                stopTime={raceSetup.stop.toJulianDate()}
+                currentTime={raceSetup.stop.toJulianDate()}
+                clockRange={ClockRange.CLAMPED}
+                clockStep={ClockStep.SYSTEM_CLOCK_MULTIPLIER}
+                // multiplier={4000} // how much time to advance each tick
+                // shouldAnimate // Animation on by default
+                onTick={(...args) => {
+                    console.log('onTick', args);
+                }}
+            />
 
             <CameraFlyTo
                 duration={5}
@@ -63,8 +89,8 @@ const Race = () => {
                 if (!teamPositions) {
                     return null;
                 }
-                const teamPosition = teamPositions.closestPosition(Date.now());
-                const modelMatrix = Transforms.eastNorthUpToFixedFrame(teamPosition.toCartesian3());
+                const teamPosition = teamPositions.positionAt(Date.now());
+                const teamOrientation = teamPositions.orientationAt(Date.now());
                 return (
                     <Entity
                         key={teamPositions.pk()}
@@ -74,11 +100,14 @@ const Race = () => {
                     >
                         <Model
                             url={modelUrl}
-                            modelMatrix={modelMatrix}
+                            modelMatrix={teamOrientation}
                             // minimumPixelSize={30}
                             // maximumScale={200}
                             minimumPixelSize={96}
                             maximumScale={500}
+                            onClick={(...args) => {
+                                console.log('onModelClick', args);
+                            }}
                         />
                     </Entity>
                 );

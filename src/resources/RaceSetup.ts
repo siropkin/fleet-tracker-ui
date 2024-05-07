@@ -1,5 +1,6 @@
-import { Entity, createResource } from '@data-client/rest';
-import { Cartesian3 } from 'cesium';
+import {createResource, Entity} from '@data-client/rest';
+import {Cartesian3} from 'cesium';
+import {RaceDate} from "@classes/RaceDate";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -154,6 +155,8 @@ export class RaceSetup extends Entity {
         distance: 0,
     };
     teams = [];
+    start = RaceDate.fromJS();
+    stop = RaceDate.fromJS();
 
     pk(): string {
         return `${this.id}`;
@@ -193,6 +196,8 @@ export class RaceSetup extends Entity {
             distance: Number,
         },
         teams: [Team],
+        start: (value: number) => new RaceDate(value),
+        stop: (value: number) => new RaceDate(value),
     }
 
     static key = 'RaceSetup';
