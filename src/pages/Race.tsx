@@ -9,6 +9,7 @@ import {
     Resource,
     Clock as CesiumClock,
     JulianDate,
+    Entity as CesiumEntity,
 } from 'cesium';
 import {Viewer, CameraFlyTo, Entity, Globe, Model, useCesium} from 'resium';
 
@@ -22,7 +23,7 @@ const courseNodesWidth = 10.0;
 
 // const origin = Cartesian3.fromDegrees(-95.0, 40.0, 200000.0);
 // const modelMatrix = Transforms.eastNorthUpToFixedFrame(origin);
-const modelUrl = Promise.resolve(new Resource(`${window.location.origin}/models/Cesium_Air.glb`));
+const modelUrl = Promise.resolve(new Resource(`${window.location.origin}/models/sailboat.glb`));
 
 const Clock = ({ raceSetup, onTick }) => {
     const cesium = useCesium();
@@ -54,6 +55,32 @@ const Clock = ({ raceSetup, onTick }) => {
     // I think it is OK because this is a one time initialization.
 
     return null;
+}
+
+const Yacht = ({ team, teamPositions, currentTime }) => {
+    const cesium = useCesium();
+
+    const teamPosition = useMemo(() => teamPositions.positionAt(currentTime), [teamPositions, currentTime]);
+    const teamOrientation = useMemo(() => teamPositions.orientationAt(currentTime), [teamPositions, currentTime]);
+
+    const entity = new CesiumEntity({ point: { pixelSize: 10 } });
+
+    return (
+        <Entity
+            name={team.name}
+            position={teamPosition.toCartesian3()}
+        >
+            <Model
+                url={modelUrl}
+                modelMatrix={teamOrientation}
+                minimumPixelSize={96}
+                maximumScale={500}
+                onClick={(...args) => {
+                    console.log('onModelClick', args);
+                }}
+            />
+        </Entity>
+    );
 }
 
 const Race = () => {
@@ -94,6 +121,7 @@ const Race = () => {
             onUpdate={(...args) => {
                 console.log('onUpdate', args);
             }}
+            requestRenderMode
         >
             <Globe enableLighting />
 
@@ -118,16 +146,8 @@ const Race = () => {
                 once
             />
 
-            {courseMainNodes.map((point: CourseNode) => (
-                <Entity
-                    key={point.pk()}
-                    name={point.name}
-                    position={point.toCartesian3()}
-                    point={courseMainNodePoint}
-                />
-            ))}
-
             <Entity
+                name="Track"
                 polyline={{
                     positions: courseNodes.map((point: CourseNode) => point.toCartesian3()),
                     material: courseNodesMaterial,
@@ -135,37 +155,50 @@ const Race = () => {
                 }}
             />
 
-            {raceSetup.teams.map((team: Team) => {
-                if (team.id !== 2) {
-                    return null;
-                }
-                const teamPositions = teamsPositions.find((position: TeamPosition) => position.id === team.id);
-                if (!teamPositions) {
-                    return null;
-                }
-                const teamPosition = teamPositions.positionAt(currentTime);
-                const teamOrientation = teamPositions.orientationAt(currentTime);
-                return (
+            <Entity name="Track Points">
+                {courseMainNodes.map((point: CourseNode) => (
                     <Entity
-                        key={teamPositions.pk()}
-                        name={team.name}
-                        position={teamPosition.toCartesian3()}
-                        // point={teamPoint}
-                    >
-                        <Model
-                            url={modelUrl}
-                            modelMatrix={teamOrientation}
-                            // minimumPixelSize={30}
-                            // maximumScale={200}
-                            minimumPixelSize={96}
-                            maximumScale={500}
-                            onClick={(...args) => {
-                                console.log('onModelClick', args);
-                            }}
-                        />
-                    </Entity>
-                );
-            })}
+                        key={point.pk()}
+                        name={point.name}
+                        position={point.toCartesian3()}
+                        point={courseMainNodePoint}
+                    />
+                ))}
+            </Entity>
+
+            <Entity name="Teams">
+                {raceSetup.teams.map((team: Team) => {
+                    if (team.id !== 2) {
+                        return null;
+                    }
+                    const teamPositions = teamsPositions.find((position: TeamPosition) => position.id === team.id);
+                    if (!teamPositions) {
+                        return null;
+                    }
+                    const teamPosition = teamPositions.positionAt(currentTime);
+                    const teamOrientation = teamPositions.orientationAt(currentTime);
+                    return (
+                        <Entity
+                            key={teamPositions.pk()}
+                            name={team.name}
+                            position={teamPosition.toCartesian3()}
+                            // point={teamPoint}
+                        >
+                            <Model
+                                url={modelUrl}
+                                modelMatrix={teamOrientation}
+                                // minimumPixelSize={30}
+                                // maximumScale={200}
+                                minimumPixelSize={96}
+                                maximumScale={500}
+                                onClick={(...args) => {
+                                    console.log('onModelClick', args);
+                                }}
+                            />
+                        </Entity>
+                    );
+                })}
+            </Entity>
         </Viewer>
     )
 };
