@@ -24,7 +24,7 @@ export class Team extends Entity {
     captain: string = '';
     colour: string = '';
     country: string = '';
-    finishedAt = RaceDate.fromJS();
+    finishedAt: number = 0;
     flag: string = '';
     img: string = '';
     markerText: string = '';

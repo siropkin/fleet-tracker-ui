@@ -1,16 +1,38 @@
-import { Entity, createResource } from '@data-client/rest';
-import { RaceDate } from "@classes/RaceDate";
-import { AvlTree } from "@classes/AvlTree";
+import {createResource, Entity} from '@data-client/rest';
 import L from 'leaflet';
+import {RaceDate} from "@classes/RaceDate";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export class Moment extends Entity {
+interface RaceMomentInterface {
+    at: number;
+    lat: number;
+    lon: number;
+    dtf: number;
+    pc: number;
+    alt?: number;
+    lap?: number;
+}
+
+export class RaceMoment extends Entity {
     at = RaceDate.fromJS();
     lat: number = 0;
     lon: number = 0;
     dtf: number = 0;
     pc: number = 0;
+    alt?: number;
+    lap?: number;
+
+    constructor(moment: RaceMomentInterface) {
+        super();
+        this.at = new RaceDate(moment.at);
+        this.lat = moment.lat;
+        this.lon = moment.lon;
+        this.dtf = moment.dtf;
+        this.pc = moment.pc;
+        this.alt = moment.alt;
+        this.lap = moment.lap;
+    }
 
     pk(): string {
         return `${this.at}`;
@@ -20,62 +42,44 @@ export class Moment extends Entity {
         return L.latLng(this.lat, this.lon);
     }
 
-    static schema = {
-        at: (value: number) => new RaceDate(value),
-        lat: Number,
-        lon: Number,
-        dtf: Number,
-        pc: Number,
-    }
+    // static schema = {
+    //     at: (value: number) => new RaceDate(value),
+    //     lat: Number,
+    //     lon: Number,
+    //     dtf: Number,
+    //     pc: Number,
+    //     alt: Number,
+    //     lap: Number,
+    // }
+
+    static key = 'RaceMoment';
 }
 
 export class TeamPosition extends Entity {
     id: number = 0;
-    moments: Moment[] = [];
+    moments = [];
 
     pk(): string {
         return `${this.id}`;
     }
 
-    positionAt(at: number): Moment {
-        // return this.moments.reduce((acc: Moment, moment: Moment) => {
-        //     if (Math.abs(moment.at.toMilliseconds() - at) < Math.abs(acc.at.toMilliseconds() - at)) {
-        //         return moment;
-        //     }
-        //     return acc;
-        // }, this.moments[0]);
-
-        const e = new AvlTree((a, b) => {
-            return a.at < b.at ? -1 : a.at > b.at ? 1 : a
-        })
-        e.teamId = this.id
-        this.moments.reverse().forEach(function(moment) {
-            // var i = {};
-            // i.r7latlng = new R7LatLng(moment.lat,moment.lon),
-            //     i.time = moment.at,
-            //     i.dtf = moment.dtf,
-            //     i.alt = moment.alt,
-            //     i.pc = moment.pc / 100,
-            //     i.lap = moment.lap,
-            // (null == viewer.latestRawTime || moment.at > viewer.latestRawTime) && (viewer.latestRawTime = moment.at),
-            console.log('moment', moment);
-            if (moment.at.toMilliseconds() <= at) {
-                e.add(moment)
+    positionAt(at: number) {
+        return this.moments.reduce((acc: RaceMoment, moment: RaceMoment) => {
+            if (Math.abs(moment.at.toMilliseconds() - at) < Math.abs(acc.at.toMilliseconds() - at)) {
+                return moment;
             }
-        })
-        // t.teamPositionsAvlTree = e
-        console.log('positionAt', e);
-
-        return e.root?.value;
+            return acc;
+        }, this.moments[0]);
     }
 
-    trackAt(at: number): Moment[] {
+    trackAt(at: number): RaceMoment[] {
         return this.moments
-            .filter((moment: Moment) => moment.at.toMilliseconds() <= at)
-            .sort((a: Moment, b: Moment) => a.at.toMilliseconds() - b.at.toMilliseconds());
+            .filter((moment: RaceMoment) => moment.at.toMilliseconds() <= at)
+            .sort((a: RaceMoment, b: RaceMoment) => a.at.toMilliseconds() - b.at.toMilliseconds());
     }
 
     orientationAt(at: number): number {
+        // TODO: Not finished
         const track = this.trackAt(at);
         if (track.length < 2) {
             return 0;
@@ -83,15 +87,12 @@ export class TeamPosition extends Entity {
 
         const lastMoment = track[track.length - 1];
         const previousMoment = track[track.length - 2];
-
-        const angleDeg = Math.atan2(lastMoment.lat - previousMoment.lat, lastMoment.lon - previousMoment.lon) * 180 / Math.PI;
-
-        return angleDeg;
+        return Math.atan2(lastMoment.lat - previousMoment.lat, lastMoment.lon - previousMoment.lon) * 180 / Math.PI;
     }
 
     static schema = {
         id: Number,
-        moments: [Moment],
+        moments: (value: RaceMomentInterface[]) => value.map((moment: RaceMomentInterface) => new RaceMoment(moment)),
     }
 
     static key = 'TeamPosition';

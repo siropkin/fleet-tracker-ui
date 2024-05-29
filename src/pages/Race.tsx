@@ -1,15 +1,22 @@
-import {Fragment, useCallback, useEffect, useMemo, useState} from 'react';
+import {Fragment, useCallback, useEffect, useMemo} from 'react';
 import { useParams, useSearchParams  } from 'react-router-dom';
 import { useSuspense } from '@data-client/react';
-import {Card, CardHeader, CardBody, CardFooter, Divider, Link, Image, Slider} from "@nextui-org/react";
-import { MapContainer, TileLayer, Polygon, Polyline, Marker, Popup, CircleMarker } from "react-leaflet";
-import ReactCountryFlag from "react-country-flag"
+import {Card, CardHeader, Image, Slider, SliderValue} from "@nextui-org/react";
+import ReactCountryFlag from "react-country-flag";
+import { MapContainer, TileLayer, Polygon, Polyline, Popup, CircleMarker } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import L from 'leaflet';
 
-import { RaceSetupResource, CourseNode, Team } from '@resources/RaceSetup';
-import { TeamsPositionsResource, TeamPosition } from '@resources/TeamsPositions';
+import { RaceSetupResource, Team } from '@resources/RaceSetup';
+import {TeamsPositionsResource, TeamPosition, RaceMoment} from '@resources/TeamsPositions';
 
-import "leaflet/dist/leaflet.css";
+const formatSliderValue = (value: SliderValue) => {
+    if (!value) {
+        return '';
+    }
+    const v = Array.isArray(value) ? value[0] : value;
+    return new Date(v).toLocaleString();
+};
 
 const Race = () => {
     const { id } = useParams();
@@ -24,7 +31,7 @@ const Race = () => {
 
     const teamType = useMemo(() => {
         const teamClass = searchParams.get('team_type');
-        return teamClass ? teamClass : undefined;
+        return teamClass ? teamClass.toLowerCase() : undefined;
     }, [searchParams]);
 
     const teamId = useMemo(() => {
@@ -34,32 +41,71 @@ const Race = () => {
 
     const teamName = useMemo(() => {
         const teamName = searchParams.get('team_name');
-        return teamName ? teamName : undefined;
+        return teamName ? teamName.toLowerCase() : undefined;
     }, [searchParams]);
 
     const courseNodes = useMemo(() => raceSetup.courseNodes().map((node) => node.toLatLng()), [raceSetup]);
     const courseMainNodes = useMemo(() => raceSetup.courseMainNodes(), [raceSetup]);
-    const courseStartNode = useMemo(() => raceSetup.courseStartNode(), [raceSetup]);
+    // const courseStartNode = useMemo(() => raceSetup.courseStartNode(), [raceSetup]);
+
+    const teams = useMemo(() => raceSetup.teams.filter((team: Team) => {
+        if (!ts) {
+            return null;
+        }
+        if (teamType != null && team.type.toLowerCase() !== teamType) {
+            return null;
+        }
+        if (teamId != null && team.id !== teamId) {
+            return null;
+        }
+        if (teamName != null && team.name.toLowerCase() !== teamName) {
+            return null;
+        }
+        return team;
+    }), [raceSetup.teams, ts, teamType, teamId, teamName]);
+
+    const teamPositionsHash = useMemo(() => {
+        return teamsPositions.reduce((acc, position) => {
+            acc[position.id] = position;
+            return acc;
+        }, {} as Record<number, TeamPosition>);
+    }, [teamsPositions]);
+
+    const mapBounds = useMemo(() => {
+        return L.latLngBounds(courseNodes);
+    }, [courseNodes]);
+
+
+    const onSliderChange = useCallback((value: SliderValue) => {
+        if (!value) {
+            return;
+        }
+        const v = Array.isArray(value) ? value[0] : value;
+        setSearchParams((prevValue) => {
+            prevValue.set('ts', `${v}`);
+            return prevValue;
+        });
+    }, [setSearchParams]);
+
 
     useEffect(() => {
         if (ts == null) {
-            setSearchParams({ t: `${Date.now()}` });
+            setSearchParams((prevValue) => {
+                const ts = raceSetup.stop.toMilliseconds() ? raceSetup.stop.toMilliseconds() : Date.now();
+                prevValue.set('ts', `${ts}`);
+                return prevValue;
+            });
             return;
         }
-    }, [setSearchParams, ts]);
+    }, [raceSetup.stop, setSearchParams, ts]);
 
     return (
         <MapContainer
             style={{minHeight: "100vh", minWidth: "100vw"}}
-            bounds={L.latLngBounds(courseNodes)}
-            boundsOptions={{padding: [1, 1]}}
+            boundsOptions={{ padding: [1, 1] }}
+            bounds={mapBounds}
             scrollWheelZoom={true}
         >
-            <TileLayer
-                attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-
             <Polygon positions={courseNodes} fillRule="nonzero"/>
 
             {courseMainNodes.map((node, index) => (
@@ -70,50 +116,44 @@ const Race = () => {
                 </CircleMarker>
             ))}
 
-            {raceSetup.teams.map((team: Team) => {
-
+            {teams.map((team: Team) => {
                 if (!ts) {
                     return null;
                 }
-                if (teamType != null && team.type.toLowerCase() !== teamType.toLowerCase()) {
-                    return null;
-                }
-                if (teamId != null && team.id !== teamId) {
-                    return null;
-                }
-                if (teamName != null && team.name.toLowerCase() !== teamName.toLowerCase()) {
-                    return null;
-                }
-                const teamPositions = teamsPositions.find((position: TeamPosition) => position.id === team.id);
+
+                const teamPositions = teamPositionsHash[team.id];
                 if (!teamPositions) {
                     return null;
                 }
-                const teamPosition = teamPositions.positionAt(ts)?.toLatLng();
-                if (!teamPosition) {
+
+                const teamTrack = teamPositions.trackAt(ts);
+                if (teamTrack.length === 0) {
                     return null;
                 }
-                console.log(ts, teamPosition);
-                // const teamOrientation = teamPositions.orientationAt(ts);
-                // const teamTrack = teamPositions.trackAt(ts).map((moment) => moment.toLatLng());
-                // if (teamTrack.length > 10) {
-                //     teamTrack.splice(0, teamTrack.length - 10);
-                // }
-                // const isFinished = team.finishedAt.toMilliseconds() < ts;
+
+                if (teamTrack.length > 50) {
+                    teamTrack.splice(0, teamTrack.length - 50);
+                }
+                const teamPosition = teamTrack[teamTrack.length - 1];
+                const teamPositionLatLon = L.latLng(teamPosition.lat, teamPosition.lon);
+                const teamTrackLatLon = teamTrack.map((moment: RaceMoment) => moment.toLatLng());
+
+                const isFinished = team.finishedAt * 1000 < ts;
+
                 return (
                     <Fragment key={team.id}>
                         <CircleMarker
-                            center={teamPosition}
+                            center={teamPositionLatLon}
                             radius={5}
                             color="blue">
                             <Popup>
                                 <Card className="col-span-12 sm:col-span-4 h-[300px] w-[300px]">
                                     <CardHeader className="absolute z-10 top-1 flex-col !items-start drop-shadow-md">
-                                        <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-md">
-                                            <ReactCountryFlag
-                                                className="emojiFlag"
-                                                countryCode={team.country}
-                                            />
-                                        </p>
+                                        <ReactCountryFlag
+                                            style={{ width: "3em", height: "3em" }}
+                                            countryCode={team.flag}
+                                            svg
+                                        />
                                         <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-md">
                                             {team.name}
                                         </p>
@@ -129,29 +169,29 @@ const Race = () => {
                             </Popup>
                         </CircleMarker>
 
-                        {/*{!isFinished && (*/}
-                        {/*    <Polyline positions={teamTrack} color="blue" weight={1} />*/}
-                        {/*)}*/}
+                        {!isFinished && (
+                            <Polyline positions={teamTrackLatLon} color="blue" weight={1} />
+                        )}
                     </Fragment>
                 );
             })}
 
             <Slider
-                label={new Date(ts || 0).toLocaleString()}
-                className="max-w-md z-999 absolute bottom-10 left-0 right-0 mx-auto"
+                className="absolute z-999 bottom-10 left-0 right-0 mx-auto max-w-md"
+                label="Time"
                 aria-label="Time"
                 size="sm"
                 step={6000}
                 minValue={raceSetup.start.toMilliseconds()}
                 maxValue={raceSetup.stop.toMilliseconds()}
                 defaultValue={ts}
-                // showSteps
-                onChange={(value) => {
-                    setSearchParams((prevValue) => {
-                        prevValue.set('ts', `${value}`);
-                        return prevValue;
-                    });
-                }}
+                getValue={formatSliderValue}
+                onChange={onSliderChange}
+            />
+
+            <TileLayer
+                attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
         </MapContainer>
     );

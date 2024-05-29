@@ -1,5 +1,4 @@
 import {Entity} from "@data-client/rest";
-import {JulianDate} from "cesium";
 
 export class RaceDate extends Entity {
     date: number | null = null;
@@ -20,10 +19,10 @@ export class RaceDate extends Entity {
         return this.date * 1000;
     }
 
-    toJulianDate(): JulianDate | undefined {
+    toSeconds(): number {
         if (!this.date) {
-            return undefined;
+            return 0;
         }
-        return JulianDate.fromDate(new Date(this.toMilliseconds()));
+        return this.date;
     }
 }
