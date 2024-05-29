@@ -1,12 +1,7 @@
 import { Entity, createResource } from '@data-client/rest';
-import {
-    Cartesian3,
-    Math as CesiumMath,
-    Transforms,
-    HeadingPitchRoll,
-    Matrix4
-} from 'cesium';
 import { RaceDate } from "@classes/RaceDate";
+import { AvlTree } from "@classes/AvlTree";
+import L from 'leaflet';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -21,8 +16,8 @@ export class Moment extends Entity {
         return `${this.at}`;
     }
 
-    toCartesian3(height: number | undefined = undefined): Cartesian3 {
-        return Cartesian3.fromDegrees(this.lon, this.lat, height);
+    toLatLng(): L.LatLng {
+        return L.latLng(this.lat, this.lon);
     }
 
     static schema = {
@@ -43,12 +38,35 @@ export class TeamPosition extends Entity {
     }
 
     positionAt(at: number): Moment {
-        return this.moments.reduce((acc: Moment, moment: Moment) => {
-            if (Math.abs(moment.at.toMilliseconds() - at) < Math.abs(acc.at.toMilliseconds() - at)) {
-                return moment;
+        // return this.moments.reduce((acc: Moment, moment: Moment) => {
+        //     if (Math.abs(moment.at.toMilliseconds() - at) < Math.abs(acc.at.toMilliseconds() - at)) {
+        //         return moment;
+        //     }
+        //     return acc;
+        // }, this.moments[0]);
+
+        const e = new AvlTree((a, b) => {
+            return a.at < b.at ? -1 : a.at > b.at ? 1 : a
+        })
+        e.teamId = this.id
+        this.moments.reverse().forEach(function(moment) {
+            // var i = {};
+            // i.r7latlng = new R7LatLng(moment.lat,moment.lon),
+            //     i.time = moment.at,
+            //     i.dtf = moment.dtf,
+            //     i.alt = moment.alt,
+            //     i.pc = moment.pc / 100,
+            //     i.lap = moment.lap,
+            // (null == viewer.latestRawTime || moment.at > viewer.latestRawTime) && (viewer.latestRawTime = moment.at),
+            console.log('moment', moment);
+            if (moment.at.toMilliseconds() <= at) {
+                e.add(moment)
             }
-            return acc;
-        }, this.moments[0]);
+        })
+        // t.teamPositionsAvlTree = e
+        console.log('positionAt', e);
+
+        return e.root?.value;
     }
 
     trackAt(at: number): Moment[] {
@@ -57,20 +75,18 @@ export class TeamPosition extends Entity {
             .sort((a: Moment, b: Moment) => a.at.toMilliseconds() - b.at.toMilliseconds());
     }
 
-    orientationAt(at: number): Matrix4 {
+    orientationAt(at: number): number {
         const track = this.trackAt(at);
+        if (track.length < 2) {
+            return 0;
+        }
 
         const lastMoment = track[track.length - 1];
         const previousMoment = track[track.length - 2];
 
         const angleDeg = Math.atan2(lastMoment.lat - previousMoment.lat, lastMoment.lon - previousMoment.lon) * 180 / Math.PI;
 
-        const heading = CesiumMath.toRadians(angleDeg);
-        const pitch = CesiumMath.toRadians(0.0);
-        const roll = CesiumMath.toRadians(0.0);
-        const hpr = new HeadingPitchRoll(heading, pitch, roll);
-
-        return Transforms.headingPitchRollToFixedFrame(previousMoment.toCartesian3(), hpr);
+        return angleDeg;
     }
 
     static schema = {

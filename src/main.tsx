@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { CacheProvider, AsyncBoundary } from "@data-client/react";
+import {NextUIProvider} from '@nextui-org/react'
 
 import Home from "@pages/Home";
 import Race from "@pages/Race";
@@ -24,10 +25,12 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <CacheProvider>
-      <AsyncBoundary fallback="loading" errorComponent={Error}>
-        <RouterProvider router={router} />
-      </AsyncBoundary>
-    </CacheProvider>
+    <NextUIProvider>
+      <CacheProvider>
+        <AsyncBoundary fallback="loading" errorComponent={Error}>
+          <RouterProvider router={router} />
+        </AsyncBoundary>
+      </CacheProvider>
+    </NextUIProvider>
   </React.StrictMode>,
 )

@@ -1,6 +1,6 @@
 import {createResource, Entity} from '@data-client/rest';
-import {Cartesian3} from 'cesium';
 import {RaceDate} from "@classes/RaceDate";
+import L from 'leaflet';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -13,89 +13,18 @@ export class CourseNode extends Entity {
         return [this.name, this.lat, this.lon].filter(Boolean).join(',');
     }
 
-    toCartesian3(height: number | undefined = undefined): Cartesian3 {
-        return Cartesian3.fromDegrees(this.lon, this.lat, height);
+    toLatLng(): L.LatLng {
+        return L.latLng(this.lat, this.lon);
     }
 }
-
-// aptain
-// :
-// "Paul Larson"
-// colour
-// :
-// "00FFFF"
-// country
-// :
-// "Switzerland"
-// finishedAt
-// :
-// 1708559465
-// flag
-// :
-// "CH"
-// id
-// :
-// 1
-// img
-// :
-// "https://ti.yb.tl/1024/2024216-427438e8.jpg"
-// markerText
-// :
-// "1"
-// maxLaps
-// :
-// 1
-// model
-// :
-// "Custom"
-// name
-// :
-// "ALLEGRA"
-// owner
-// :
-// "Adrian Keller"
-// sail
-// :
-// "SUI888"
-// start
-// :
-// 1708356600
-// started
-// :
-// true
-// status
-// :
-// "RACING"
-// tags
-// :
-// (2) [70183, 70197]
-// tcf1
-// :
-// "1.000"
-// tcf2
-// :
-// "1.000"
-// tcf3
-// :
-// "1.408"
-// thumb
-// :
-// "https://ti.yb.tl/256/2024216-86d28e80.jpg"
-// type
-// :
-// "CAT_L"
-// url
-// :
-// ""
 
 export class Team extends Entity {
     id: number = 0;
     name: string = '';
-
     captain: string = '';
     colour: string = '';
     country: string = '';
-    finishedAt: number = 0;
+    finishedAt = RaceDate.fromJS();
     flag: string = '';
     img: string = '';
     markerText: string = '';
@@ -121,11 +50,10 @@ export class Team extends Entity {
     static schema = {
         id: Number,
         name: String,
-
         captain: String,
         colour: String,
         country: String,
-        finishedAt: Number,
+        finishedAt: (value: number) => new RaceDate(value),
         flag: String,
         img: String,
         markerText: String,

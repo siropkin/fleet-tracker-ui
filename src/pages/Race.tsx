@@ -1,206 +1,160 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
-import { useParams } from 'react-router-dom';
+import {Fragment, useCallback, useEffect, useMemo, useState} from 'react';
+import { useParams, useSearchParams  } from 'react-router-dom';
 import { useSuspense } from '@data-client/react';
-import {
-    ClockRange,
-    ClockStep,
-    Color,
-    PolylineArrowMaterialProperty,
-    Resource,
-    Clock as CesiumClock,
-    JulianDate,
-    Entity as CesiumEntity,
-} from 'cesium';
-import {Viewer, CameraFlyTo, Entity, Globe, Model, useCesium} from 'resium';
+import {Card, CardHeader, CardBody, CardFooter, Divider, Link, Image, Slider} from "@nextui-org/react";
+import { MapContainer, TileLayer, Polygon, Polyline, Marker, Popup, CircleMarker } from "react-leaflet";
+import ReactCountryFlag from "react-country-flag"
+import L from 'leaflet';
 
 import { RaceSetupResource, CourseNode, Team } from '@resources/RaceSetup';
 import { TeamsPositionsResource, TeamPosition } from '@resources/TeamsPositions';
 
-const courseMainNodePoint = { pixelSize: 5 };
-const courseNodesMaterial = new PolylineArrowMaterialProperty(Color.fromCssColorString("#2bb3c0"));
-const courseNodesWidth = 10.0;
-// const teamPoint = { pixelSize: 15 };
-
-// const origin = Cartesian3.fromDegrees(-95.0, 40.0, 200000.0);
-// const modelMatrix = Transforms.eastNorthUpToFixedFrame(origin);
-const modelUrl = Promise.resolve(new Resource(`${window.location.origin}/models/sailboat.glb`));
-
-const Clock = ({ raceSetup, onTick }) => {
-    const cesium = useCesium();
-
-    // Init Clock component.
-    useEffect(() => {
-        if (cesium.viewer) {
-            // Make sure Viewer is mounted. ref.current.cesiumElement is Cesium.Viewer
-
-            // Initialize the Clock/Animation Widget.
-            console.log(cesium.viewer);
-            const clock = cesium.viewer.clockViewModel;
-            // const tm = clock.currentTime; console.log(tm); console.log(JulianDate.toDate(tm));
-            // JulianDate.addDays(clock.startTime, 1, clock.stopTime);
-            clock.currentTime = JulianDate.fromDate(new Date(raceSetup.stop.toMilliseconds()));
-            clock.startTime = JulianDate.fromDate(new Date(raceSetup.start.toMilliseconds()));
-            clock.stopTime = JulianDate.fromDate(new Date(raceSetup.stop.toMilliseconds()));
-            clock.clockRange = ClockRange.LOOP_STOP; // loop when we hit the end time
-            clock.clockStep = ClockStep.SYSTEM_CLOCK_MULTIPLIER;
-            clock.clock.onTick.addEventListener(onTick);
-            clock.multiplier = 30; // 30sec/tick => 1-data-set/min, so airplanes make 1 minutes worth of movement every 2 sec.
-            // shouldAnimate // Animation is turned off at page load.
-
-            // Initialize timeLine Widget at the bottom.
-            const timeLine = cesium.viewer.timeline;
-            timeLine.zoomTo(clock.startTime, clock.stopTime);
-        }
-    }, [cesium, onTick, raceSetup]); // ESlint complains about this (add onTick, etc), but if you do so, then things don't work well.
-    // I think it is OK because this is a one time initialization.
-
-    return null;
-}
-
-const Yacht = ({ team, teamPositions, currentTime }) => {
-    const cesium = useCesium();
-
-    const teamPosition = useMemo(() => teamPositions.positionAt(currentTime), [teamPositions, currentTime]);
-    const teamOrientation = useMemo(() => teamPositions.orientationAt(currentTime), [teamPositions, currentTime]);
-
-    const entity = new CesiumEntity({ point: { pixelSize: 10 } });
-
-    return (
-        <Entity
-            name={team.name}
-            position={teamPosition.toCartesian3()}
-        >
-            <Model
-                url={modelUrl}
-                modelMatrix={teamOrientation}
-                minimumPixelSize={96}
-                maximumScale={500}
-                onClick={(...args) => {
-                    console.log('onModelClick', args);
-                }}
-            />
-        </Entity>
-    );
-}
+import "leaflet/dist/leaflet.css";
 
 const Race = () => {
     const { id } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const raceSetup = useSuspense(RaceSetupResource.get, { id: `${id}` });
     const teamsPositions = useSuspense(TeamsPositionsResource.get, { id: `${id}` });
 
-    // TODO: For race nodes use race.poi.lines instead of raceSetup.courseNodes()
-    const [currentTime, setCurrentTime] = useState(Date.now());
+    const ts = useMemo(() => {
+        const time = searchParams.get('ts');
+        return time ? parseInt(time) : undefined;
+    }, [searchParams]);
 
-    const courseNodes = useMemo(() => raceSetup.courseNodes(), [raceSetup]);
+    const teamType = useMemo(() => {
+        const teamClass = searchParams.get('team_type');
+        return teamClass ? teamClass : undefined;
+    }, [searchParams]);
+
+    const teamId = useMemo(() => {
+        const teamId = searchParams.get('team_id');
+        return teamId ? parseInt(teamId) : undefined;
+    }, [searchParams]);
+
+    const teamName = useMemo(() => {
+        const teamName = searchParams.get('team_name');
+        return teamName ? teamName : undefined;
+    }, [searchParams]);
+
+    const courseNodes = useMemo(() => raceSetup.courseNodes().map((node) => node.toLatLng()), [raceSetup]);
     const courseMainNodes = useMemo(() => raceSetup.courseMainNodes(), [raceSetup]);
     const courseStartNode = useMemo(() => raceSetup.courseStartNode(), [raceSetup]);
-    const cameraDestination = useMemo(() => courseStartNode.toCartesian3(100000), [courseStartNode]);
 
-    const onTick = useCallback(
-        (clock: CesiumClock) => {
-            setCurrentTime((prevValue) => {
-                const newTime = JulianDate.toDate(clock.currentTime).getTime();
-                if (newTime !== prevValue) {
-                    return newTime;
-                }
-                return prevValue;
-            });
-        },
-        [],
-    );
+    useEffect(() => {
+        if (ts == null) {
+            setSearchParams({ t: `${Date.now()}` });
+            return;
+        }
+    }, [setSearchParams, ts]);
 
     return (
-        <Viewer
-            id={id}
-            geocoder={false} // search bar
-            homeButton={false} // home button
-            navigationHelpButton={false} // navigation help
-            // sceneModePicker={false} // 3D/2D
-            // baseLayerPicker={false} // map type
-            full
-            onUpdate={(...args) => {
-                console.log('onUpdate', args);
-            }}
-            requestRenderMode
+        <MapContainer
+            style={{minHeight: "100vh", minWidth: "100vw"}}
+            bounds={L.latLngBounds(courseNodes)}
+            boundsOptions={{padding: [1, 1]}}
+            scrollWheelZoom={true}
         >
-            <Globe enableLighting />
-
-            {/*<Clock*/}
-            {/*    startTime={raceSetup.start.toJulianDate()}*/}
-            {/*    stopTime={raceSetup.stop.toJulianDate()}*/}
-            {/*    currentTime={raceSetup.stop.toJulianDate()}*/}
-            {/*    clockRange={ClockRange.CLAMPED}*/}
-            {/*    clockStep={ClockStep.SYSTEM_CLOCK_MULTIPLIER}*/}
-            {/*    // multiplier={4000} // how much time to advance each tick*/}
-            {/*    // shouldAnimate // Animation on by default*/}
-            {/*    onTick={(...args) => {*/}
-            {/*        console.log('onTick', args);*/}
-            {/*    }}*/}
-            {/*/>*/}
-
-            <Clock raceSetup={raceSetup} onTick={onTick} />
-
-            <CameraFlyTo
-                duration={5}
-                destination={cameraDestination}
-                once
+            <TileLayer
+                attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            <Entity
-                name="Track"
-                polyline={{
-                    positions: courseNodes.map((point: CourseNode) => point.toCartesian3()),
-                    material: courseNodesMaterial,
-                    width: courseNodesWidth,
+            <Polygon positions={courseNodes} fillRule="nonzero"/>
+
+            {courseMainNodes.map((node, index) => (
+                <CircleMarker key={index} center={node.toLatLng()} radius={5} color="red">
+                    <Popup>
+                        <span>{node.name}</span>
+                    </Popup>
+                </CircleMarker>
+            ))}
+
+            {raceSetup.teams.map((team: Team) => {
+
+                if (!ts) {
+                    return null;
+                }
+                if (teamType != null && team.type.toLowerCase() !== teamType.toLowerCase()) {
+                    return null;
+                }
+                if (teamId != null && team.id !== teamId) {
+                    return null;
+                }
+                if (teamName != null && team.name.toLowerCase() !== teamName.toLowerCase()) {
+                    return null;
+                }
+                const teamPositions = teamsPositions.find((position: TeamPosition) => position.id === team.id);
+                if (!teamPositions) {
+                    return null;
+                }
+                const teamPosition = teamPositions.positionAt(ts)?.toLatLng();
+                if (!teamPosition) {
+                    return null;
+                }
+                console.log(ts, teamPosition);
+                // const teamOrientation = teamPositions.orientationAt(ts);
+                // const teamTrack = teamPositions.trackAt(ts).map((moment) => moment.toLatLng());
+                // if (teamTrack.length > 10) {
+                //     teamTrack.splice(0, teamTrack.length - 10);
+                // }
+                // const isFinished = team.finishedAt.toMilliseconds() < ts;
+                return (
+                    <Fragment key={team.id}>
+                        <CircleMarker
+                            center={teamPosition}
+                            radius={5}
+                            color="blue">
+                            <Popup>
+                                <Card className="col-span-12 sm:col-span-4 h-[300px] w-[300px]">
+                                    <CardHeader className="absolute z-10 top-1 flex-col !items-start drop-shadow-md">
+                                        <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-md">
+                                            <ReactCountryFlag
+                                                className="emojiFlag"
+                                                countryCode={team.country}
+                                            />
+                                        </p>
+                                        <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-md">
+                                            {team.name}
+                                        </p>
+                                        <h4 className="text-white font-medium text-large drop-shadow-md">{team.captain}</h4>
+                                    </CardHeader>
+                                    <Image
+                                        removeWrapper
+                                        alt={team.name}
+                                        className="z-0 w-full h-full object-cover"
+                                        src={team.thumb}
+                                    />
+                                </Card>
+                            </Popup>
+                        </CircleMarker>
+
+                        {/*{!isFinished && (*/}
+                        {/*    <Polyline positions={teamTrack} color="blue" weight={1} />*/}
+                        {/*)}*/}
+                    </Fragment>
+                );
+            })}
+
+            <Slider
+                label={new Date(ts || 0).toLocaleString()}
+                className="max-w-md z-999 absolute bottom-10 left-0 right-0 mx-auto"
+                aria-label="Time"
+                size="sm"
+                step={6000}
+                minValue={raceSetup.start.toMilliseconds()}
+                maxValue={raceSetup.stop.toMilliseconds()}
+                defaultValue={ts}
+                // showSteps
+                onChange={(value) => {
+                    setSearchParams((prevValue) => {
+                        prevValue.set('ts', `${value}`);
+                        return prevValue;
+                    });
                 }}
             />
-
-            <Entity name="Track Points">
-                {courseMainNodes.map((point: CourseNode) => (
-                    <Entity
-                        key={point.pk()}
-                        name={point.name}
-                        position={point.toCartesian3()}
-                        point={courseMainNodePoint}
-                    />
-                ))}
-            </Entity>
-
-            <Entity name="Teams">
-                {raceSetup.teams.map((team: Team) => {
-                    if (team.id !== 2) {
-                        return null;
-                    }
-                    const teamPositions = teamsPositions.find((position: TeamPosition) => position.id === team.id);
-                    if (!teamPositions) {
-                        return null;
-                    }
-                    const teamPosition = teamPositions.positionAt(currentTime);
-                    const teamOrientation = teamPositions.orientationAt(currentTime);
-                    return (
-                        <Entity
-                            key={teamPositions.pk()}
-                            name={team.name}
-                            position={teamPosition.toCartesian3()}
-                            // point={teamPoint}
-                        >
-                            <Model
-                                url={modelUrl}
-                                modelMatrix={teamOrientation}
-                                // minimumPixelSize={30}
-                                // maximumScale={200}
-                                minimumPixelSize={96}
-                                maximumScale={500}
-                                onClick={(...args) => {
-                                    console.log('onModelClick', args);
-                                }}
-                            />
-                        </Entity>
-                    );
-                })}
-            </Entity>
-        </Viewer>
-    )
+        </MapContainer>
+    );
 };
 
 export default Race;
