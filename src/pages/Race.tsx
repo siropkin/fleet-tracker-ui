@@ -4,7 +4,9 @@ import { useSuspense } from '@data-client/react';
 import {
   Card,
   CardHeader,
+  CardFooter,
   Image,
+  Progress,
   Slider,
   SliderValue,
 } from '@nextui-org/react';
@@ -121,18 +123,17 @@ const Race = () => {
     [setSearchParams],
   );
 
+  const raceStop = raceSetup.stopInMilliseconds();
   useEffect(() => {
     if (ts == null) {
       setSearchParams((prevValue) => {
-        const ts = raceSetup.stop.toMilliseconds()
-          ? raceSetup.stop.toMilliseconds()
-          : Date.now();
+        const ts = raceStop ? raceStop : Date.now();
         prevValue.set('ts', `${ts}`);
         return prevValue;
       });
       return;
     }
-  }, [raceSetup.stop, setSearchParams, ts]);
+  }, [raceStop, setSearchParams, ts]);
 
   return (
     <MapContainer
@@ -151,7 +152,11 @@ const Race = () => {
           color="red"
         >
           <Popup>
-            <span>{node.name}</span>
+            <Card className="w-[200px] h-[100px]">
+              <CardHeader className="bg-teal-400 w-full h-full">
+                <h4 className="text-large font-medium">{node.name}</h4>
+              </CardHeader>
+            </Card>
           </Popup>
         </CircleMarker>
       ))}
@@ -180,51 +185,87 @@ const Race = () => {
           moment.toLatLng(),
         );
 
-        const isFinished = team.finishedAt * 1000 < ts;
-
+        const distanceLeft = raceSetup.courseDistance() - teamPosition.dtf;
+        const distanceLabel =
+          teamPosition.dtf > 0
+            ? `${Math.round(teamPosition.dtf / 100)} NM`
+            : 'Finish';
         return (
           <Fragment key={team.id}>
-            <CircleMarker center={teamPositionLatLon} radius={5} color="blue">
+            <CircleMarker
+              center={teamPositionLatLon}
+              radius={8}
+              color={`#${team.colour}`}
+            >
               <Popup>
-                <Card className="col-span-12 sm:col-span-4 h-[300px] w-[300px]">
-                  <CardHeader className="absolute z-10 top-1 flex-col !items-start drop-shadow-md">
+                <Card className="w-[310px] h-[300px]">
+                  <Image
+                    className="absolute top-0 bottom-0 w-full h-5/6 object-cover"
+                    alt={team.name}
+                    src={team.thumb}
+                    removeWrapper
+                    radius="none"
+                  />
+                  <CardHeader className="w-full h-5/6 flex-col !items-start bg-gradient-to-r from-gray-500">
                     <ReactCountryFlag
                       style={{ width: '3em', height: '3em' }}
                       countryCode={team.flag}
                       svg
                     />
-                    <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-md">
+                    <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-xl">
                       {team.name}
                     </p>
-                    <h4 className="text-white font-medium text-large drop-shadow-md">
+                    <h4 className="text-white font-medium text-large drop-shadow-xl">
                       {team.captain}
                     </h4>
+                    {/*<p className="text-white/60 text-tiny drop-shadow-xl">*/}
+                    {/*  {team.model}*/}
+                    {/*</p>*/}
                   </CardHeader>
-                  <Image
-                    removeWrapper
-                    alt={team.name}
-                    className="z-0 w-full h-full object-cover"
-                    src={team.thumb}
-                  />
+
+                  <CardFooter className="w-full h-full flex !items-start ">
+                    <Progress
+                      classNames={{
+                        base: 'w-full self-center',
+                        track: 'bg-gray-300',
+                      }}
+                      size="sm"
+                      label="Distance left"
+                      aria-label="Distance left"
+                      valueLabel={distanceLabel}
+                      value={distanceLeft}
+                      maxValue={raceSetup.courseDistance()}
+                      showValueLabel={true}
+                    />
+                  </CardFooter>
                 </Card>
               </Popup>
             </CircleMarker>
 
-            {!isFinished && (
-              <Polyline positions={teamTrackLatLon} color="blue" weight={1} />
+            {!!teamPosition.dtf && (
+              <Polyline
+                positions={teamTrackLatLon}
+                color={`#${team.colour}`}
+                weight={2}
+              />
             )}
           </Fragment>
         );
       })}
 
       <Slider
-        className="absolute z-999 bottom-10 left-0 right-0 mx-auto max-w-md"
+        classNames={{
+          base: 'absolute z-999 bottom-10 left-0 right-0 w-3/5 mx-auto',
+          track: 'bg-gray-400',
+          label: 'font-medium text-medium',
+          value: 'font-medium text-medium',
+        }}
         label="Time"
         aria-label="Time"
         size="sm"
         step={6000}
-        minValue={raceSetup.start.toMilliseconds()}
-        maxValue={raceSetup.stop.toMilliseconds()}
+        minValue={raceSetup.startInMilliseconds()}
+        maxValue={raceSetup.stopInMilliseconds()}
         defaultValue={ts}
         getValue={formatSliderValue}
         onChange={onSliderChange}

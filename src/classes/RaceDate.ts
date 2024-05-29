@@ -3,10 +3,10 @@ import { Entity } from '@data-client/rest';
 export class RaceDate extends Entity {
   date: number | null = null;
 
-  constructor(date: number | null) {
-    super();
-    this.date = date;
-  }
+  // constructor(date: number | null) {
+  //   super();
+  //   this.date = date;
+  // }
 
   pk(): string {
     return `${this.date}`;
@@ -25,4 +25,8 @@ export class RaceDate extends Entity {
     }
     return this.date;
   }
+
+  static schema = {
+    date: Number,
+  };
 }

@@ -1,6 +1,5 @@
 import { createResource, Entity } from '@data-client/rest';
 import L from 'leaflet';
-import { RaceDate } from '@classes/RaceDate';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -15,7 +14,7 @@ interface RaceMomentInterface {
 }
 
 export class RaceMoment extends Entity {
-  at = RaceDate.fromJS();
+  at: number = 0;
   lat: number = 0;
   lon: number = 0;
   dtf: number = 0;
@@ -25,7 +24,7 @@ export class RaceMoment extends Entity {
 
   constructor(moment: RaceMomentInterface) {
     super();
-    this.at = new RaceDate(moment.at);
+    this.at = moment.at;
     this.lat = moment.lat;
     this.lon = moment.lon;
     this.dtf = moment.dtf;
@@ -40,6 +39,13 @@ export class RaceMoment extends Entity {
 
   toLatLng(): L.LatLng {
     return L.latLng(this.lat, this.lon);
+  }
+
+  atInMilliseconds(): number {
+    if (!this.at) {
+      return 0;
+    }
+    return this.at * 1000;
   }
 
   // static schema = {
@@ -66,8 +72,8 @@ export class TeamPosition extends Entity {
   positionAt(at: number) {
     return this.moments.reduce((acc: RaceMoment, moment: RaceMoment) => {
       if (
-        Math.abs(moment.at.toMilliseconds() - at) <
-        Math.abs(acc.at.toMilliseconds() - at)
+        Math.abs(moment.atInMilliseconds() - at) <
+        Math.abs(acc.atInMilliseconds() - at)
       ) {
         return moment;
       }
@@ -77,10 +83,10 @@ export class TeamPosition extends Entity {
 
   trackAt(at: number): RaceMoment[] {
     return this.moments
-      .filter((moment: RaceMoment) => moment.at.toMilliseconds() <= at)
+      .filter((moment: RaceMoment) => moment.atInMilliseconds() <= at)
       .sort(
         (a: RaceMoment, b: RaceMoment) =>
-          a.at.toMilliseconds() - b.at.toMilliseconds(),
+          a.atInMilliseconds() - b.atInMilliseconds(),
       );
   }
 

@@ -1,5 +1,4 @@
 import { createResource, Entity } from '@data-client/rest';
-import { RaceDate } from '@classes/RaceDate';
 import L from 'leaflet';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -47,13 +46,20 @@ export class Team extends Entity {
     return `${this.id}`;
   }
 
+  finishedAtInMilliseconds(): number {
+    if (!this.finishedAt) {
+      return 0;
+    }
+    return this.finishedAt * 1000;
+  }
+
   static schema = {
     id: Number,
     name: String,
     captain: String,
     colour: String,
     country: String,
-    finishedAt: (value: number) => new RaceDate(value),
+    finishedAt: Number,
     flag: String,
     img: String,
     markerText: String,
@@ -83,8 +89,8 @@ export class RaceSetup extends Entity {
     distance: 0,
   };
   teams = [];
-  start = RaceDate.fromJS();
-  stop = RaceDate.fromJS();
+  start: number | null = null;
+  stop: number | null = null;
 
   pk(): string {
     return `${this.id}`;
@@ -123,7 +129,24 @@ export class RaceSetup extends Entity {
   }
 
   courseDistance(): number {
-    return this.course.distance;
+    if (!this.course.distance) {
+      return 0;
+    }
+    return this.course.distance * 1000;
+  }
+
+  startInMilliseconds(): number {
+    if (!this.start) {
+      return 0;
+    }
+    return this.start * 1000;
+  }
+
+  stopInMilliseconds(): number {
+    if (!this.stop) {
+      return 0;
+    }
+    return this.stop * 1000;
   }
 
   static schema = {
@@ -133,8 +156,8 @@ export class RaceSetup extends Entity {
       distance: Number,
     },
     teams: [Team],
-    start: (value: number) => new RaceDate(value),
-    stop: (value: number) => new RaceDate(value),
+    start: Number,
+    stop: Number,
   };
 
   static key = 'RaceSetup';
