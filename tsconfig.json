@@ -27,8 +27,8 @@
       "@components/*": ["src/components/*"],
       "@pages/*": ["src/pages/*"],
       "@resources/*": ["src/resources/*"],
-      "@classes/*": ["src/classes/*"],
-    },
+      "@classes/*": ["src/classes/*"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
