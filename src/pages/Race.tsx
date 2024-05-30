@@ -50,19 +50,24 @@ const Race = () => {
     return time ? parseInt(time) : undefined;
   }, [searchParams]);
 
-  const teamType = useMemo(() => {
-    const teamClass = searchParams.get('team_type');
-    return teamClass ? teamClass.toLowerCase() : undefined;
+  const boatType = useMemo(() => {
+    const value = searchParams.get('boat_type');
+    return value ? value.toLowerCase() : undefined;
+  }, [searchParams]);
+
+  const boatModel = useMemo(() => {
+    const value = searchParams.get('boat_model');
+    return value ? value.toLowerCase() : undefined;
   }, [searchParams]);
 
   const teamId = useMemo(() => {
-    const teamId = searchParams.get('team_id');
-    return teamId ? parseInt(teamId) : undefined;
+    const value = searchParams.get('team_id');
+    return value ? parseInt(value) : undefined;
   }, [searchParams]);
 
   const teamName = useMemo(() => {
-    const teamName = searchParams.get('team_name');
-    return teamName ? teamName.toLowerCase() : undefined;
+    const value = searchParams.get('team_name');
+    return value ? value.toLowerCase() : undefined;
   }, [searchParams]);
 
   const courseNodes = useMemo(
@@ -81,7 +86,10 @@ const Race = () => {
         if (!ts) {
           return null;
         }
-        if (teamType != null && team.type.toLowerCase() !== teamType) {
+        if (boatType != null && team.type.toLowerCase() !== boatType) {
+          return null;
+        }
+        if (boatModel != null && team.model.toLowerCase() !== boatModel) {
           return null;
         }
         if (teamId != null && team.id !== teamId) {
@@ -92,7 +100,7 @@ const Race = () => {
         }
         return team;
       }),
-    [raceSetup.teams, ts, teamType, teamId, teamName],
+    [raceSetup.teams, ts, boatType, teamId, teamName],
   );
 
   const teamPositionsHash = useMemo(() => {
@@ -152,8 +160,8 @@ const Race = () => {
           color="red"
         >
           <Popup>
-            <Card className="w-[200px] h-[100px]">
-              <CardHeader className="bg-teal-400 w-full h-full">
+            <Card className="w-[210px] h-[100px]">
+              <CardHeader className="w-full h-full">
                 <h4 className="text-large font-medium">{node.name}</h4>
               </CardHeader>
             </Card>
@@ -161,97 +169,100 @@ const Race = () => {
         </CircleMarker>
       ))}
 
-      {teams.map((team: Team) => {
-        if (!ts) {
-          return null;
-        }
+      {!!ts &&
+        teams.map((team: Team) => {
+          const teamPositions = teamPositionsHash[team.id];
+          if (!teamPositions) {
+            return null;
+          }
 
-        const teamPositions = teamPositionsHash[team.id];
-        if (!teamPositions) {
-          return null;
-        }
+          const teamTrack = teamPositions.trackAt(ts);
+          if (teamTrack.length === 0) {
+            return null;
+          }
 
-        const teamTrack = teamPositions.trackAt(ts);
-        if (teamTrack.length === 0) {
-          return null;
-        }
+          if (teamTrack.length > 50) {
+            teamTrack.splice(0, teamTrack.length - 50);
+          }
+          const teamPosition = teamTrack[teamTrack.length - 1];
+          const teamPositionLatLon = L.latLng(
+            teamPosition.lat,
+            teamPosition.lon,
+          );
+          const teamTrackLatLon = teamTrack.map((moment: RaceMoment) =>
+            moment.toLatLng(),
+          );
 
-        if (teamTrack.length > 50) {
-          teamTrack.splice(0, teamTrack.length - 50);
-        }
-        const teamPosition = teamTrack[teamTrack.length - 1];
-        const teamPositionLatLon = L.latLng(teamPosition.lat, teamPosition.lon);
-        const teamTrackLatLon = teamTrack.map((moment: RaceMoment) =>
-          moment.toLatLng(),
-        );
-
-        const distanceLeft = raceSetup.courseDistance() - teamPosition.dtf;
-        const distanceLabel =
-          teamPosition.dtf > 0
-            ? `${Math.round(teamPosition.dtf / 100)} NM`
-            : 'Finish';
-        return (
-          <Fragment key={team.id}>
-            <CircleMarker
-              center={teamPositionLatLon}
-              radius={8}
-              color={`#${team.colour}`}
-            >
-              <Popup>
-                <Card className="w-[310px] h-[300px]">
-                  <Image
-                    className="absolute top-0 bottom-0 w-full h-5/6 object-cover"
-                    alt={team.name}
-                    src={team.thumb}
-                    removeWrapper
-                    radius="none"
-                  />
-                  <CardHeader className="w-full h-5/6 flex-col !items-start bg-gradient-to-r from-gray-500">
-                    <ReactCountryFlag
-                      style={{ width: '3em', height: '3em' }}
-                      countryCode={team.flag}
-                      svg
-                    />
-                    <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-xl">
-                      {team.name}
-                    </p>
-                    <h4 className="text-white font-medium text-large drop-shadow-xl">
-                      {team.captain}
-                    </h4>
-                    {/*<p className="text-white/60 text-tiny drop-shadow-xl">*/}
-                    {/*  {team.model}*/}
-                    {/*</p>*/}
-                  </CardHeader>
-
-                  <CardFooter className="w-full h-full flex !items-start ">
-                    <Progress
-                      classNames={{
-                        base: 'w-full self-center',
-                        track: 'bg-gray-300',
-                      }}
-                      size="sm"
-                      label="Distance left"
-                      aria-label="Distance left"
-                      valueLabel={distanceLabel}
-                      value={distanceLeft}
-                      maxValue={raceSetup.courseDistance()}
-                      showValueLabel={true}
-                    />
-                  </CardFooter>
-                </Card>
-              </Popup>
-            </CircleMarker>
-
-            {!!teamPosition.dtf && (
-              <Polyline
-                positions={teamTrackLatLon}
+          const distanceLeft = raceSetup.courseDistance() - teamPosition.dtf;
+          const distanceLabel =
+            teamPosition.dtf > 0
+              ? `${Math.round(teamPosition.dtf / 100)} NM`
+              : 'Finish';
+          return (
+            <Fragment key={team.id}>
+              <CircleMarker
+                center={teamPositionLatLon}
+                radius={8}
                 color={`#${team.colour}`}
-                weight={2}
-              />
-            )}
-          </Fragment>
-        );
-      })}
+                fillColor={`#${team.colour}`}
+                fillOpacity={1}
+                fill
+              >
+                <Popup>
+                  <Card className="w-[310px] h-[300px] border-transparent">
+                    <Image
+                      className="absolute top-0 bottom-0 w-full h-5/6 object-cover"
+                      alt={team.name}
+                      src={team.thumb}
+                      removeWrapper
+                      radius="none"
+                    />
+                    <CardHeader className="w-full h-5/6 flex-col !items-start bg-gradient-to-r from-gray-500">
+                      <ReactCountryFlag
+                        style={{ width: '3em', height: '3em' }}
+                        countryCode={team.flag}
+                        svg
+                      />
+                      <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-xl">
+                        {team.name}
+                      </p>
+                      <h4 className="text-white font-medium text-large drop-shadow-xl">
+                        {team.captain}
+                      </h4>
+                      {/*<p className="text-white/60 text-tiny drop-shadow-xl">*/}
+                      {/*  {team.model}*/}
+                      {/*</p>*/}
+                    </CardHeader>
+
+                    <CardFooter className="w-full h-full flex !items-start border-transparent">
+                      <Progress
+                        classNames={{
+                          base: 'w-full self-center',
+                          track: 'bg-gray-300',
+                        }}
+                        size="sm"
+                        label="Distance left"
+                        aria-label="Distance left"
+                        valueLabel={distanceLabel}
+                        value={distanceLeft}
+                        maxValue={raceSetup.courseDistance()}
+                        showValueLabel={true}
+                      />
+                    </CardFooter>
+                  </Card>
+                </Popup>
+              </CircleMarker>
+
+              {!!teamPosition.dtf && (
+                <Polyline
+                  positions={teamTrackLatLon}
+                  color={`#${team.colour}`}
+                  weight={2}
+                />
+              )}
+            </Fragment>
+          );
+        })}
 
       <Slider
         classNames={{

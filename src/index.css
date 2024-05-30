@@ -21,6 +21,8 @@ body,
 .leaflet-popup-content {
   margin: 0;
   padding: 0;
+  width: unset !important;
+  height: unset !important;
 }
 
 .leaflet-popup-close-button {
