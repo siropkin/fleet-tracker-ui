@@ -84,10 +84,7 @@ export class TeamPosition extends Entity {
   trackAt(at: number): RaceMoment[] {
     return this.moments
       .filter((moment: RaceMoment) => moment.atInMilliseconds() <= at)
-      .sort(
-        (a: RaceMoment, b: RaceMoment) =>
-          a.atInMilliseconds() - b.atInMilliseconds(),
-      );
+      .sort((a: RaceMoment, b: RaceMoment) => a.at - b.at);
   }
 
   orientationAt(at: number): number {

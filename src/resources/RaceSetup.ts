@@ -70,7 +70,7 @@ export class Team extends Entity {
     start: Number,
     started: Boolean,
     status: String,
-    tags: Array,
+    tags: [Number],
     tcf1: String,
     tcf2: String,
     tcf3: String,
@@ -82,15 +82,42 @@ export class Team extends Entity {
   static key = 'Team';
 }
 
+export class Tag extends Entity {
+  handicap: string = '';
+  id: number = 0;
+  laps: number = 0;
+  lb: boolean = false;
+  name: string = '';
+  show: number = 0;
+  sort: number = 0;
+
+  pk(): string {
+    return `${this.id}`;
+  }
+
+  static schema = {
+    handicap: String,
+    id: Number,
+    laps: Number,
+    lb: Boolean,
+    name: String,
+    show: Number,
+    sort: Number,
+  };
+
+  static key = 'Tag';
+}
+
 export class RaceSetup extends Entity {
   id = '';
   course = {
     nodes: [],
     distance: 0,
   };
-  teams = [];
   start: number | null = null;
   stop: number | null = null;
+  teams = [];
+  tags = [];
 
   pk(): string {
     return `${this.id}`;
@@ -155,9 +182,10 @@ export class RaceSetup extends Entity {
       nodes: [CourseNode],
       distance: Number,
     },
-    teams: [Team],
     start: Number,
     stop: Number,
+    teams: [Team],
+    tags: [Tag],
   };
 
   static key = 'RaceSetup';
