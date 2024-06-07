@@ -11,6 +11,7 @@ export default defineConfig({
       '@pages': path.resolve(__dirname, './src/pages'),
       '@resources': path.resolve(__dirname, './src/resources'),
       '@classes': path.resolve(__dirname, './src/classes'),
+      '@icons': path.resolve(__dirname, './src/icons'),
     },
   },
   plugins: [react()],

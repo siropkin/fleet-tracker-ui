@@ -81,15 +81,14 @@ export class TeamPosition extends Entity {
     }, this.moments[0]);
   }
 
-  trackAt(at: number): RaceMoment[] {
-    return this.moments
-      .filter((moment: RaceMoment) => moment.atInMilliseconds() <= at)
-      .sort((a: RaceMoment, b: RaceMoment) => a.at - b.at);
+  positionsAt(at: number): RaceMoment[] {
+    at = at > 10000000000 ? at / 1000 : at;
+    return this.moments.filter((moment: RaceMoment) => moment.at <= at);
   }
 
   orientationAt(at: number): number {
     // TODO: Not finished
-    const track = this.trackAt(at);
+    const track = this.positionsAt(at);
     if (track.length < 2) {
       return 0;
     }

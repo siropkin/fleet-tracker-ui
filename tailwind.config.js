@@ -10,7 +10,8 @@ export default {
   theme: {
     extend: {
       zIndex: {
-        999: '999',
+        500: '500',
+        600: '600',
       },
     },
   },
