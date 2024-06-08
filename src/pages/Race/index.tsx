@@ -1,4 +1,11 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useSuspense } from '@data-client/react';
@@ -9,7 +16,6 @@ import {
   Chip,
   Input,
   Link,
-  Selection,
   Slider,
   SliderValue,
 } from '@nextui-org/react';
@@ -35,6 +41,7 @@ import {
 import { SearchIcon } from '@icons/SearchIcon';
 import { NotificationIcon } from '@icons/NotificationIcon';
 import { EyeIcon } from '@icons/EyeIcon';
+import { ShareIcon } from '@icons/ShareIcon';
 
 import {
   Sidebar,
@@ -113,7 +120,7 @@ const Race = () => {
     );
   }, [raceSetup.tags]);
 
-  const teamsPositionsAtHash = useMemo(() => {
+  const positionsAtHash = useMemo(() => {
     return teamsPositions.reduce(
       (acc, positions: TeamPosition) => {
         acc[positions.id] = ts ? positions.positionsAt(ts) : [];
@@ -150,7 +157,7 @@ const Race = () => {
   //   });
   // }, [teamsFiltered, teamsPositionsAtHash]);
 
-  const teamsSearchResult = useMemo(() => {
+  const searchResult = useMemo(() => {
     if (!teamsSearchText && !teamsSearchTags.length) {
       return raceSetup.teams.map((team: Team) => team.id);
     }
@@ -221,7 +228,7 @@ const Race = () => {
     }, []);
   }, [raceSetup.teams, watchlist, teamsSearchTags, teamsSearchText]);
 
-  const onTeamSearchTagClick = useCallback((tagId: number | string) => {
+  const onSearchTagClick = useCallback((tagId: number | string) => {
     setTeamsSearchTags((prevValue) => {
       const next = [...prevValue];
       const index = next.indexOf(tagId);
@@ -234,36 +241,7 @@ const Race = () => {
     });
   }, []);
 
-  const onClassButtonClick = useCallback(
-    (tag: Tag) => {
-      setSearchParams((prevValue) => {
-        const classes = prevValue.getAll('class');
-        const index = classes.indexOf(`${tag.id}`);
-        if (index === -1) {
-          classes.push(`${tag.id}`);
-        } else {
-          classes.splice(index, 1);
-        }
-        prevValue.delete('class');
-        classes.forEach((c) => prevValue.append('class', c));
-        return prevValue;
-      });
-    },
-    [setSearchParams],
-  );
-
-  const onTeamButtonClick = useCallback(
-    (teamIds: Selection) => {
-      setSearchParams((prevValue) => {
-        prevValue.delete('id');
-        [...teamIds].forEach((id) => prevValue.append('id', `${id}`));
-        return prevValue;
-      });
-    },
-    [setSearchParams],
-  );
-
-  const onTeamClick = useCallback(
+  const onWatchlistButtonClick = useCallback(
     (teamId: number) => {
       setSearchParams((prevValue) => {
         const ids = prevValue.getAll('id');
@@ -295,40 +273,35 @@ const Race = () => {
     [setSearchParams],
   );
 
-  // useEffect(() => {
-  //   // clear id search params if a team is not in the selected class
-  //   if (!teamClassFilter.length) {
-  //     return;
-  //   }
-  //   setSearchParams((prevValue) => {
-  //     const ids = prevValue.getAll('id');
-  //     const newIds = ids.filter((id) => {
-  //       const parsedId = parseInt(id);
-  //       const team = teamsSorted.find((team: Team) => team.id === parsedId);
-  //       if (!team) {
-  //         return false;
-  //       }
-  //       return team.tags.some((tag: number) => teamClassFilter.includes(tag));
-  //     });
-  //     prevValue.delete('id');
-  //     newIds.forEach((id) => prevValue.append('id', id));
-  //     return prevValue;
-  //   });
-  // }, [teamsSorted, teamClassFilter, setSearchParams]);
-
-  const raceStop = raceSetup.stopInMilliseconds();
   useEffect(() => {
-    if (!ts) {
-      setSearchParams((prevValue) => {
-        const ts = raceStop ? raceStop : Date.now();
-        prevValue.set('ts', `${ts}`);
-        return prevValue;
-      });
+    if (ts) {
       return;
     }
-  }, [raceStop, setSearchParams, ts]);
 
-  console.log(raceSetup);
+    const nextValue = raceSetup.stop ? raceSetup.stop * 1000 : Date.now();
+    setSearchParams((prevValue) => {
+      prevValue.set('ts', `${nextValue}`);
+      return prevValue;
+    });
+  }, [raceSetup.stop, setSearchParams, ts]);
+
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (!firstRender.current) {
+      return undefined;
+    }
+
+    firstRender.current = false;
+    if (watchlist.length) {
+      return undefined;
+    }
+
+    onOpen();
+
+    return () => {
+      firstRender.current = true;
+    };
+  }, [watchlist.length, onOpen]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -360,41 +333,37 @@ const Race = () => {
         ))}
 
         {raceSetup.teams.map((team: Team) => {
-          const teamPositionsAt = teamsPositionsAtHash[team.id];
-          if (!teamPositionsAt?.length) {
+          const positionsAt = positionsAtHash[team.id];
+          if (!positionsAt?.length) {
             return null;
           }
 
-          const isTeamSelected = isOpen
-            ? teamsSearchResult.includes(team.id)
-            : watchlist.includes(team.id);
+          const isInWatchlist = watchlist.includes(team.id);
 
-          const teamRadius = isTeamSelected ? 8 : 4;
-          const teamColor = isTeamSelected ? `#${team.colour}` : 'gray';
-          const teamOpacity = isTeamSelected ? 1 : 0.3;
-          const teamMaxPositionsLength = isTeamSelected ? 50 : 10;
+          const isSelected = isOpen
+            ? searchResult.includes(team.id)
+            : isInWatchlist;
 
-          if (teamPositionsAt.length > teamMaxPositionsLength) {
-            teamPositionsAt.splice(
-              0,
-              teamPositionsAt.length - teamMaxPositionsLength,
-            );
+          const radius = isSelected ? 8 : 4;
+          const color = isSelected ? `#${team.colour}` : 'gray';
+          const opacity = isSelected ? 1 : 0.3;
+          const maxPositionsLength = isSelected ? 50 : 10;
+
+          const positionAt = positionsAt[positionsAt.length - 1];
+          const positionLatLon = L.latLng(positionAt.lat, positionAt.lon);
+          if (positionsAt.length > maxPositionsLength) {
+            positionsAt.splice(0, positionsAt.length - maxPositionsLength);
           }
-          const teamPosition = teamPositionsAt[teamPositionsAt.length - 1];
-          const teamPositionLatLon = L.latLng(
-            teamPosition.lat,
-            teamPosition.lon,
-          );
-          const teamTrackLatLon = teamPositionsAt.map((moment: RaceMoment) =>
+          const trackLatLon = positionsAt.map((moment: RaceMoment) =>
             moment.toLatLng(),
           );
 
           return (
-            <Fragment key={team.pk() + isTeamSelected}>
-              {isTeamSelected && (
+            <Fragment key={team.pk() + isSelected}>
+              {isSelected && (
                 <Marker
-                  position={teamPositionLatLon}
-                  opacity={teamOpacity}
+                  position={positionLatLon}
+                  opacity={opacity}
                   icon={L.divIcon({
                     className: `text-xl font-bold text-white cursor-default`,
                     // html: `<div style="width: 100%; background-color: ${teamColor}">${index + 1}</div>`,
@@ -407,31 +376,32 @@ const Race = () => {
                 />
               )}
 
-              {!!teamPosition.dtf && (
+              {!!positionAt.dtf && (
                 <Polyline
-                  positions={teamTrackLatLon}
-                  color={teamColor}
-                  opacity={teamOpacity}
-                  fillOpacity={teamOpacity}
-                  fillColor={teamColor}
+                  positions={trackLatLon}
+                  color={color}
+                  opacity={opacity}
+                  fillOpacity={opacity}
+                  fillColor={color}
                   weight={2}
                 />
               )}
 
               <CircleMarker
-                center={teamPositionLatLon}
-                radius={teamRadius}
-                color={teamColor}
-                opacity={teamOpacity}
-                fillColor={teamColor}
-                fillOpacity={teamOpacity}
+                center={positionLatLon}
+                radius={radius}
+                color={color}
+                opacity={opacity}
+                fillColor={color}
+                fillOpacity={opacity}
               >
                 <Popup>
                   <TeamCard
                     team={team}
-                    position={teamPosition}
+                    position={positionAt}
                     courseDistance={raceSetup.courseDistance()}
-                    onTeamClick={onTeamClick}
+                    isInWatchlist={isInWatchlist}
+                    onWatchlistButtonClick={onWatchlistButtonClick}
                   />
                 </Popup>
               </CircleMarker>
@@ -476,18 +446,31 @@ const Race = () => {
         >
           <NotificationIcon />
         </Button>
+
+        <Button
+          color="default"
+          variant="light"
+          size="lg"
+          aria-label="Share"
+          onPress={() => {}}
+          isIconOnly
+        >
+          <ShareIcon />
+        </Button>
       </div>
 
       <Sidebar
         classNames={{
           wrapper: 'z-500',
           body: 'overflow-y-auto',
+          backdrop: '-z-[1]',
         }}
         backdrop="opaque"
         placement="right"
         size="5xl"
         isOpen={isOpen}
         onOpenChange={onOpenChange}
+        isDismissable={false}
         hideCloseButton
       >
         <SidebarContent>
@@ -501,6 +484,7 @@ const Race = () => {
                   value={teamsSearchText}
                   onValueChange={setTeamsSearchText}
                   isClearable
+                  autoFocus
                 />
                 <div className="flex flex-wrap gap-4">
                   <Chip
@@ -512,7 +496,7 @@ const Race = () => {
                     }
                     variant="flat"
                     endContent={<EyeIcon />}
-                    onClick={() => onTeamSearchTagClick(watchlistTagId)}
+                    onClick={() => onSearchTagClick(watchlistTagId)}
                   >
                     Watchlist
                   </Chip>
@@ -528,7 +512,7 @@ const Race = () => {
                             : 'default'
                         }
                         variant="flat"
-                        onClick={() => onTeamSearchTagClick(tag.id)}
+                        onClick={() => onSearchTagClick(tag.id)}
                       >
                         {tag.name}
                       </Chip>
@@ -538,21 +522,23 @@ const Race = () => {
               <SidebarBody>
                 <div className="flex flex-row flex-wrap !gap-4">
                   {raceSetup.teams.map((team: Team) => {
-                    if (!teamsSearchResult.includes(team.id)) {
+                    if (!searchResult.includes(team.id)) {
                       return null;
                     }
-                    const teamPositionsAt = teamsPositionsAtHash[team.id];
-                    if (!teamPositionsAt?.length) {
+                    const positionsAt = positionsAtHash[team.id];
+                    if (!positionsAt?.length) {
                       return null;
                     }
+                    const isInWatchlist = watchlist.includes(team.id);
+                    const positionAt = positionsAt[positionsAt.length - 1];
                     return (
                       <TeamCard
                         key={team.pk()}
                         team={team}
-                        tagsHash={tagsHash}
-                        position={teamPositionsAt[teamPositionsAt.length - 1]}
+                        position={positionAt}
                         courseDistance={raceSetup.courseDistance()}
-                        onTeamClick={onTeamClick}
+                        isInWatchlist={isInWatchlist}
+                        onWatchlistButtonClick={onWatchlistButtonClick}
                       />
                     );
                   })}
@@ -562,9 +548,6 @@ const Race = () => {
                 <Button color="default" variant="light" onPress={onClose}>
                   Close
                 </Button>
-                {/*<Button color="primary" onPress={onClose}>*/}
-                {/*  Action*/}
-                {/*</Button>*/}
               </SidebarFooter>
             </Fragment>
           )}

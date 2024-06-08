@@ -27,16 +27,13 @@ export const Sidebar = forwardRef<ElementRef<typeof Modal>, SheetProps>(
     const extendedClassNames = {
       backdrop: cn(classNames?.backdrop),
       base: cn('!m-0 h-full !rounded-none', classNames?.base),
-      body: cn(classNames?.body),
+      body: cn('min-w-[1024px]', classNames?.body),
       closeButton: cn(classNames?.closeButton),
       footer: cn(classNames?.footer),
       header: cn(classNames?.header),
       wrapper: cn(
-        placement == 'left'
-          ? '!justify-start'
-          : placement == 'right'
-            ? 'justify-end'
-            : '',
+        placement == 'left' ? 'mr-auto' : placement == 'right' ? 'ml-auto' : '',
+        'max-w-fit',
         classNames?.wrapper,
       ),
     } as SlotsToClasses<ModalSlots>;
