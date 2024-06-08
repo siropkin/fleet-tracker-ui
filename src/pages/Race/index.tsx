@@ -1,14 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { useSuspense } from '@data-client/react';
 import {
   Button,
   Card,
   CardHeader,
+  Chip,
+  Input,
+  Link,
   Selection,
   Slider,
   SliderValue,
-  useDisclosure,
 } from '@nextui-org/react';
 import {
   CircleMarker,
@@ -22,19 +25,29 @@ import {
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-import { SearchIcon } from '@icons/SearchIcon';
-import { NotificationIcon } from '@icons/NotificationIcon';
-
 import { RaceSetupResource, Tag, Team } from '@resources/RaceSetup';
 import {
   RaceMoment,
   TeamPosition,
   TeamsPositionsResource,
 } from '@resources/TeamsPositions';
-import { TeamCard } from '@pages/Race/components/TeamCard';
-import { Container } from '@pages/Race/components/Container';
-import { TeamSearchBar } from '@pages/Race/components/TeamSearchBar';
-import { renderToStaticMarkup } from 'react-dom/server';
+
+import { SearchIcon } from '@icons/SearchIcon';
+import { NotificationIcon } from '@icons/NotificationIcon';
+import { EyeIcon } from '@icons/EyeIcon';
+
+import {
+  Sidebar,
+  SidebarBody,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  useDisclosure,
+} from '@components/Sidebar.tsx';
+
+import { TeamCard } from './components/TeamCard';
+
+const watchlistTagId = 'watchlist';
 
 const formatSliderValue = (value: SliderValue) => {
   if (!value) {
@@ -44,18 +57,10 @@ const formatSliderValue = (value: SliderValue) => {
   return new Date(v).toLocaleString();
 };
 
-const makeTeamMarkerIconHtml = (team: Team, index: number) => {
+const makeTeamMarkerIconHtml = (team: Team) => {
   return renderToStaticMarkup(
     <div
-      style={{
-        // width: '100%',
-        // minWidth: '50px',
-        // maxWidth: '100px',
-        // overflow: 'hidden',
-        // whiteSpace: 'nowrap',
-        // textOverflow: 'ellipsis',
-        backgroundColor: `#${team.colour}`,
-      }}
+      style={{ backgroundColor: `#${team.colour}` }}
       className="w-fit min-w-[50px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap text-medium text-white pr-6"
     >
       {team.name}
@@ -72,8 +77,11 @@ const Race = () => {
     id: `${id}`,
   });
 
+  const [teamsSearchText, setTeamsSearchText] = useState('' as string);
+  const [teamsSearchTags, setTeamsSearchTags] = useState(
+    Array<number | string>,
+  );
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [teamIdFilterSearch, setTeamIdFilterSearch] = useState([]);
 
   const courseMainNodes = useMemo(
     () => raceSetup.courseMainNodes(),
@@ -85,22 +93,15 @@ const Race = () => {
     [courseMainNodes],
   );
 
-  const tsFilter = useMemo(() => {
+  const ts = useMemo(() => {
     const value = searchParams.get('ts');
     return parseInt(value ?? '');
   }, [searchParams]);
 
-  // const teamClassFilter = useMemo(() => {
-  //   const value = searchParams.getAll('class');
-  //   return value.map((v) => parseInt(v));
-  // }, [searchParams]);
-
-  const teamIdFilter = useMemo(() => {
+  const watchlist = useMemo(() => {
     const value = searchParams.getAll('id');
     return value.map((v) => parseInt(v));
   }, [searchParams]);
-
-  console.log('teamIdFilter', teamIdFilter);
 
   const tagsHash = useMemo(() => {
     return raceSetup.tags.reduce(
@@ -115,12 +116,12 @@ const Race = () => {
   const teamsPositionsAtHash = useMemo(() => {
     return teamsPositions.reduce(
       (acc, positions: TeamPosition) => {
-        acc[positions.id] = tsFilter ? positions.positionsAt(tsFilter) : [];
+        acc[positions.id] = ts ? positions.positionsAt(ts) : [];
         return acc;
       },
       {} as Record<number, RaceMoment[]>,
     );
-  }, [teamsPositions, tsFilter]);
+  }, [teamsPositions, ts]);
 
   // const teamsFiltered = useMemo(() => {
   //   return raceSetup.teams.filter((team: Team) => {
@@ -148,6 +149,90 @@ const Race = () => {
   //     return aPosition.dtf - bPosition.dtf;
   //   });
   // }, [teamsFiltered, teamsPositionsAtHash]);
+
+  const teamsSearchResult = useMemo(() => {
+    if (!teamsSearchText && !teamsSearchTags.length) {
+      return raceSetup.teams.map((team: Team) => team.id);
+    }
+    const textFilterFixed = teamsSearchText.trim().toLowerCase();
+    return raceSetup.teams.reduce((acc: number[], team: Team) => {
+      let textMatch = !textFilterFixed;
+      let tagsMatch = !teamsSearchTags.length;
+
+      if (
+        !textMatch &&
+        textFilterFixed &&
+        team.name.toLowerCase().includes(textFilterFixed)
+      ) {
+        textMatch = true;
+      }
+
+      if (
+        !textMatch &&
+        textFilterFixed &&
+        team.captain.toLowerCase().includes(textFilterFixed)
+      ) {
+        textMatch = true;
+      }
+
+      if (
+        !textMatch &&
+        textFilterFixed &&
+        team.country.toLowerCase().includes(textFilterFixed)
+      ) {
+        textMatch = true;
+      }
+
+      if (
+        !textMatch &&
+        textFilterFixed &&
+        team.flag.toLowerCase().includes(textFilterFixed)
+      ) {
+        textMatch = true;
+      }
+
+      if (
+        !textMatch &&
+        textFilterFixed &&
+        team.model.toLowerCase().includes(textFilterFixed)
+      ) {
+        textMatch = true;
+      }
+
+      const checkForWatchlist =
+        teamsSearchTags.length && teamsSearchTags.includes(watchlistTagId);
+      const searchTags = teamsSearchTags.filter(
+        (tag) => tag !== watchlistTagId,
+      );
+
+      if (!tagsMatch && checkForWatchlist) {
+        tagsMatch = watchlist.includes(team.id);
+      }
+
+      if (!tagsMatch && searchTags.length) {
+        tagsMatch = team.tags.some((tag: number) => searchTags.includes(tag));
+      }
+
+      if (textMatch && tagsMatch) {
+        acc.push(team.id);
+      }
+
+      return acc;
+    }, []);
+  }, [raceSetup.teams, watchlist, teamsSearchTags, teamsSearchText]);
+
+  const onTeamSearchTagClick = useCallback((tagId: number | string) => {
+    setTeamsSearchTags((prevValue) => {
+      const next = [...prevValue];
+      const index = next.indexOf(tagId);
+      if (index === -1) {
+        next.push(tagId);
+      } else {
+        next.splice(index, 1);
+      }
+      return next;
+    });
+  }, []);
 
   const onClassButtonClick = useCallback(
     (tag: Tag) => {
@@ -233,7 +318,7 @@ const Race = () => {
 
   const raceStop = raceSetup.stopInMilliseconds();
   useEffect(() => {
-    if (!tsFilter) {
+    if (!ts) {
       setSearchParams((prevValue) => {
         const ts = raceStop ? raceStop : Date.now();
         prevValue.set('ts', `${ts}`);
@@ -241,16 +326,19 @@ const Race = () => {
       });
       return;
     }
-  }, [raceStop, setSearchParams, tsFilter]);
+  }, [raceStop, setSearchParams, ts]);
+
+  console.log(raceSetup);
 
   return (
-    <Container>
+    <div className="relative h-full w-full overflow-hidden">
       <MapContainer
         style={{ minHeight: '100vh', minWidth: '100vw' }}
         boundsOptions={{ padding: [1, 1] }}
         bounds={mapBounds}
         scrollWheelZoom={true}
         zoomControl={false} // TODO: Turn them on to the right middle?
+        attributionControl={false}
       >
         <Polygon
           positions={courseMainNodes}
@@ -271,49 +359,35 @@ const Race = () => {
           </CircleMarker>
         ))}
 
-        {raceSetup.teams.map((team: Team, index) => {
-          const teamPositions = teamsPositionsAtHash[team.id];
-          if (!teamPositions) {
+        {raceSetup.teams.map((team: Team) => {
+          const teamPositionsAt = teamsPositionsAtHash[team.id];
+          if (!teamPositionsAt?.length) {
             return null;
           }
 
-          if (teamPositions.length === 0) {
-            return null;
-          }
-
-          // const isTeamSelected =
-          //   teamIdFilter.length === 0 || teamIdFilter.includes(team.id);
-
-          const isTeamSelected =
-            isOpen && teamIdFilterSearch.length
-              ? teamIdFilterSearch.includes(team.id)
-              : teamIdFilter.includes(team.id);
+          const isTeamSelected = isOpen
+            ? teamsSearchResult.includes(team.id)
+            : watchlist.includes(team.id);
 
           const teamRadius = isTeamSelected ? 8 : 4;
           const teamColor = isTeamSelected ? `#${team.colour}` : 'gray';
           const teamOpacity = isTeamSelected ? 1 : 0.3;
           const teamMaxPositionsLength = isTeamSelected ? 50 : 10;
 
-          if (teamPositions.length > teamMaxPositionsLength) {
-            teamPositions.splice(
+          if (teamPositionsAt.length > teamMaxPositionsLength) {
+            teamPositionsAt.splice(
               0,
-              teamPositions.length - teamMaxPositionsLength,
+              teamPositionsAt.length - teamMaxPositionsLength,
             );
           }
-          const teamPosition = teamPositions[teamPositions.length - 1];
+          const teamPosition = teamPositionsAt[teamPositionsAt.length - 1];
           const teamPositionLatLon = L.latLng(
             teamPosition.lat,
             teamPosition.lon,
           );
-          const teamTrackLatLon = teamPositions.map((moment: RaceMoment) =>
+          const teamTrackLatLon = teamPositionsAt.map((moment: RaceMoment) =>
             moment.toLatLng(),
           );
-
-          const distanceLeft = raceSetup.courseDistance() - teamPosition.dtf;
-          const distanceLabel =
-            teamPosition.dtf > 0
-              ? `${Math.round(teamPosition.dtf / 100)} NM`
-              : 'Finish';
 
           return (
             <Fragment key={team.pk() + isTeamSelected}>
@@ -326,7 +400,7 @@ const Race = () => {
                     // html: `<div style="width: 100%; background-color: ${teamColor}">${index + 1}</div>`,
                     // iconSize: [34, 34],
                     // iconAnchor: [17, 50],
-                    html: makeTeamMarkerIconHtml(team, index),
+                    html: makeTeamMarkerIconHtml(team),
                     // iconSize: [34, 34],
                     iconAnchor: [-5, 40],
                   })}
@@ -355,11 +429,8 @@ const Race = () => {
                 <Popup>
                   <TeamCard
                     team={team}
-                    tagsHash={tagsHash}
-                    distanceLabel={distanceLabel}
-                    distanceLeft={distanceLeft}
-                    distanceMax={raceSetup.courseDistance()}
-                    onClassButtonClick={onClassButtonClick}
+                    position={teamPosition}
+                    courseDistance={raceSetup.courseDistance()}
                     onTeamClick={onTeamClick}
                   />
                 </Popup>
@@ -374,28 +445,131 @@ const Race = () => {
         />
       </MapContainer>
 
-      <Button
-        className="absolute z-500 top-5 left-5"
-        // color="warning"
-        variant="light"
-        size="lg"
-        aria-label="Search"
-        onPress={onOpen}
-        isIconOnly
+      <Link
+        className="absolute z-500 top-5 left-5 h-12 flex items-center text-2xl"
+        href={raceSetup.logo.href}
+        color="foreground"
+        isExternal
       >
-        <SearchIcon />
-      </Button>
+        {raceSetup.title}
+      </Link>
 
-      <Button
-        className="absolute z-500 top-5 right-5"
-        // color="warning"
-        variant="light"
-        size="lg"
-        aria-label="Notifications"
-        isIconOnly
+      <div className="absolute z-500 top-5 right-5 flex gap-4 items-center">
+        <Button
+          color="default"
+          variant="light"
+          size="lg"
+          aria-label="Search"
+          onPress={onOpen}
+          isIconOnly
+        >
+          <SearchIcon />
+        </Button>
+
+        <Button
+          color="default"
+          variant="light"
+          size="lg"
+          aria-label="Notifications"
+          onPress={() => {}}
+          isIconOnly
+        >
+          <NotificationIcon />
+        </Button>
+      </div>
+
+      <Sidebar
+        classNames={{
+          wrapper: 'z-500',
+          body: 'overflow-y-auto',
+        }}
+        backdrop="opaque"
+        placement="right"
+        size="5xl"
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        hideCloseButton
       >
-        <NotificationIcon />
-      </Button>
+        <SidebarContent>
+          {(onClose) => (
+            <Fragment>
+              <SidebarHeader className="flex flex-col gap-4">
+                <Input
+                  size="lg"
+                  placeholder="Search"
+                  startContent={<SearchIcon />}
+                  value={teamsSearchText}
+                  onValueChange={setTeamsSearchText}
+                  isClearable
+                />
+                <div className="flex flex-wrap gap-4">
+                  <Chip
+                    className="cursor-pointer"
+                    color={
+                      teamsSearchTags.includes(watchlistTagId)
+                        ? 'primary'
+                        : 'default'
+                    }
+                    variant="flat"
+                    endContent={<EyeIcon />}
+                    onClick={() => onTeamSearchTagClick(watchlistTagId)}
+                  >
+                    Watchlist
+                  </Chip>
+                  {raceSetup.tags
+                    .sort((a: Tag, b: Tag) => a.name.localeCompare(b.name))
+                    .map((tag: Tag) => (
+                      <Chip
+                        key={tag.pk()}
+                        className="cursor-pointer"
+                        color={
+                          teamsSearchTags.includes(tag.id)
+                            ? 'primary'
+                            : 'default'
+                        }
+                        variant="flat"
+                        onClick={() => onTeamSearchTagClick(tag.id)}
+                      >
+                        {tag.name}
+                      </Chip>
+                    ))}
+                </div>
+              </SidebarHeader>
+              <SidebarBody>
+                <div className="flex flex-row flex-wrap !gap-4">
+                  {raceSetup.teams.map((team: Team) => {
+                    if (!teamsSearchResult.includes(team.id)) {
+                      return null;
+                    }
+                    const teamPositionsAt = teamsPositionsAtHash[team.id];
+                    if (!teamPositionsAt?.length) {
+                      return null;
+                    }
+                    return (
+                      <TeamCard
+                        key={team.pk()}
+                        team={team}
+                        tagsHash={tagsHash}
+                        position={teamPositionsAt[teamPositionsAt.length - 1]}
+                        courseDistance={raceSetup.courseDistance()}
+                        onTeamClick={onTeamClick}
+                      />
+                    );
+                  })}
+                </div>
+              </SidebarBody>
+              <SidebarFooter>
+                <Button color="default" variant="light" onPress={onClose}>
+                  Close
+                </Button>
+                {/*<Button color="primary" onPress={onClose}>*/}
+                {/*  Action*/}
+                {/*</Button>*/}
+              </SidebarFooter>
+            </Fragment>
+          )}
+        </SidebarContent>
+      </Sidebar>
 
       {/*<ButtonGroup*/}
       {/*  className="absolute z-999 top-10 left-0 right-0 w-3/5 mx-auto"*/}
@@ -445,15 +619,15 @@ const Race = () => {
       {/*  </ListboxSection>*/}
       {/*</Listbox>*/}
 
-      <TeamSearchBar
-        teams={raceSetup.teams}
-        selectedTeams={teamIdFilter}
-        tagsHash={tagsHash}
-        isOpen={isOpen}
-        onOpenChange={onOpenChange}
-        onTeamClick={onTeamClick}
-        onFilteredChange={setTeamIdFilterSearch}
-      />
+      {/*<TeamSearchBar*/}
+      {/*  teams={raceSetup.teams}*/}
+      {/*  selectedTeams={teamIdFilter}*/}
+      {/*  tagsHash={tagsHash}*/}
+      {/*  isOpen={isOpen}*/}
+      {/*  onOpenChange={onOpenChange}*/}
+      {/*  onTeamClick={onTeamClick}*/}
+      {/*  onFilteredChange={setTeamIdFilterSearch}*/}
+      {/*/>*/}
 
       <Slider
         classNames={{
@@ -468,11 +642,11 @@ const Race = () => {
         getValue={formatSliderValue}
         minValue={raceSetup.startInMilliseconds()}
         maxValue={raceSetup.stopInMilliseconds()}
-        value={tsFilter}
+        value={ts}
         step={6000}
         onChange={onTimeSliderChange}
       />
-    </Container>
+    </div>
   );
 };
 

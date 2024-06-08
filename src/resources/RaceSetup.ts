@@ -3,6 +3,13 @@ import L from 'leaflet';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+//         "logo": {
+//             "x": 10,
+//             "y": 10,
+//             "href": "http://caribbean600.rorc.org/",
+//             "url": "http://cdn.yb.tl/race_logos/c6002017.png"
+//         },
+
 export class CourseNode extends Entity {
   name: string | undefined = undefined;
   lat: number = 0;
@@ -110,6 +117,7 @@ export class Tag extends Entity {
 
 export class RaceSetup extends Entity {
   id = '';
+  title = '';
   course = {
     nodes: [],
     distance: 0,
@@ -118,6 +126,12 @@ export class RaceSetup extends Entity {
   stop: number | null = null;
   teams = [];
   tags = [];
+  logo = {
+    x: 0,
+    y: 0,
+    href: '',
+    url: '',
+  };
 
   pk(): string {
     return `${this.id}`;
@@ -178,6 +192,7 @@ export class RaceSetup extends Entity {
 
   static schema = {
     id: String,
+    title: String,
     course: {
       nodes: [CourseNode],
       distance: Number,
@@ -186,6 +201,7 @@ export class RaceSetup extends Entity {
     stop: Number,
     teams: [Team],
     tags: [Tag],
+    logo: Object,
   };
 
   static key = 'RaceSetup';

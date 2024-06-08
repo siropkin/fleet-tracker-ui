@@ -1,97 +1,61 @@
 import {
   Card,
+  CardBody,
   CardFooter,
   CardHeader,
-  Chip,
   Image,
   Progress,
 } from '@nextui-org/react';
 import ReactCountryFlag from 'react-country-flag';
 
-export const TeamCard = (props) => {
-  const {
-    team,
-    tagsHash,
-    distanceLabel,
-    distanceLeft,
-    distanceMax,
-    onTeamClick,
-    onClassButtonClick,
-  } = props;
+const yachtPlaceholderImgUrl = `${window.location.origin}/yacht_placeholder.png`;
 
-  const showDistance = !!distanceLabel && !!distanceLeft && !!distanceMax;
-  // team.thumb or "yacht_placeholder.png" from current site
-  const teamImgUrl =
-    team.thumb || `${window.location.origin}/yacht_placeholder.png`;
+export const TeamCard = (props) => {
+  const { team, position, courseDistance, onTeamClick } = props;
+
+  const distanceLabel =
+    position.dtf > 0 ? `${Math.round(position.dtf / 100)} NM` : 'Finish';
 
   return (
     <Card
-      className="w-[340px] h-[320px] border-none relative"
+      className="py-4 w-[270px] min-w-[270px] h-[420px] min-h-[420px]"
       onPress={() => onTeamClick(team.id)}
       isPressable
     >
-      <Image
-        className={`absolute top-0 bottom-0 w-full ${showDistance ? 'h-4/5' : 'h-full'} object-cover`}
-        alt={team.name}
-        src={teamImgUrl}
-        removeWrapper
-        radius="none"
-      />
-      <CardHeader
-        className={`w-full ${showDistance ? 'h-4/5' : 'h-full'} flex-col !items-start`}
-      >
+      <CardHeader className="py-0 px-4 flex-row items-center gap-4">
         <ReactCountryFlag
-          style={{ width: '3em', height: '3em' }}
+          className="drop-shadow-lg"
+          style={{ width: '48px', height: '48px' }}
           countryCode={team.flag}
           svg
         />
-        <p className="text-tiny text-white/60 uppercase font-bold drop-shadow-xl">
-          {team.name}
-        </p>
-        <h4 className="text-white font-medium text-large drop-shadow-xl">
-          {team.captain}
-        </h4>
-        {/*<p className="text-white/60 text-tiny drop-shadow-xl">*/}
-        {/*  {team.model}*/}
-        {/*</p>*/}
-
-        {/*<Divider className="my-4" />*/}
-        <div className="flex gap-4 mt-auto">
-          {team.tags.map((tagId: number) => {
-            const tag = tagsHash[tagId];
-            return (
-              <Chip
-                key={tag.pk()}
-                className={onClassButtonClick ? 'cursor-pointer' : ''}
-                color="default"
-                size="sm"
-                radius="sm"
-                onClick={() => onClassButtonClick?.(tag)}
-              >
-                {tag.name}
-              </Chip>
-            );
-          })}
+        <div className="flex flex-col items-start overflow-hidden">
+          <h4 className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-large font-bold">
+            {team.name}
+          </h4>
+          <p className="text-tiny uppercase font-bold !m-0">{team.captain}</p>
         </div>
       </CardHeader>
 
-      {showDistance && (
-        <CardFooter className="w-full h-full flex !items-start">
-          <Progress
-            classNames={{
-              base: 'w-full self-center',
-              track: 'bg-gray-300',
-            }}
-            size="sm"
-            label="Distance left"
-            aria-label="Distance left"
-            valueLabel={distanceLabel}
-            value={distanceLeft}
-            maxValue={distanceMax}
-            showValueLabel={true}
-          />
-        </CardFooter>
-      )}
+      <CardBody className="overflow-visible py-2">
+        <Image
+          alt={team.name}
+          className="object-cover rounded-xl w-full h-full"
+          src={team.thumb || yachtPlaceholderImgUrl}
+        />
+      </CardBody>
+
+      <CardFooter>
+        <Progress
+          size="sm"
+          label="Distance left"
+          aria-label="Distance left"
+          valueLabel={distanceLabel}
+          value={courseDistance - position.dtf}
+          maxValue={courseDistance}
+          showValueLabel={true}
+        />
+      </CardFooter>
     </Card>
   );
 };
