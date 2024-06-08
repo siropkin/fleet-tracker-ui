@@ -105,17 +105,45 @@ export class TeamPosition extends Entity {
     );
   }
 
+  static key = 'TeamPosition';
+
   static schema = {
     id: Number,
     moments: (value: RaceMomentInterface[]) =>
       value.map((moment: RaceMomentInterface) => new RaceMoment(moment)),
   };
 
-  static key = 'TeamPosition';
+  static merge(existing: any, incoming: any) {
+    let wasModified = false;
+    const nextMoments = [...existing.moments];
+    incoming.moments.forEach((moment: RaceMoment) => {
+      const isMomentExists = nextMoments.some(
+        (nextMoment: RaceMoment) => nextMoment.at === moment.at,
+      );
+      if (!isMomentExists) {
+        wasModified = true;
+        nextMoments.push(moment);
+      }
+    });
+    if (!wasModified) {
+      return existing;
+    }
+    return {
+      id: existing.id,
+      moments: nextMoments.sort((a: RaceMoment, b: RaceMoment) => a.at - b.at),
+    };
+  }
 }
 
-export const TeamsPositionsResource = createResource({
+export const TeamsPositionsAllResource = createResource({
   urlPrefix: `${API_BASE_URL}/api/v1/races`,
   path: '/:id/teams-positions-all',
   schema: [TeamPosition],
+});
+
+export const TeamsPositionsLatestResource = createResource({
+  urlPrefix: `${API_BASE_URL}/api/v1/races`,
+  path: '/:id/teams-positions-latest',
+  schema: [TeamPosition],
+  pollFrequency: 60000,
 });

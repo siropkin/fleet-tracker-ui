@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { useSuspense } from '@data-client/react';
+import { useSuspense, useSubscription } from '@data-client/react';
 import {
   Button,
   Card,
@@ -35,7 +35,8 @@ import { RaceSetupResource, Tag, Team } from '@resources/RaceSetup';
 import {
   RaceMoment,
   TeamPosition,
-  TeamsPositionsResource,
+  TeamsPositionsAllResource,
+  TeamsPositionsLatestResource,
 } from '@resources/TeamsPositions';
 
 import { SearchIcon } from '@icons/SearchIcon';
@@ -80,9 +81,15 @@ const Race = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const raceSetup = useSuspense(RaceSetupResource.get, { id: `${id}` });
-  const teamsPositions = useSuspense(TeamsPositionsResource.get, {
+  const teamsPositions = useSuspense(TeamsPositionsAllResource.get, {
     id: `${id}`,
   });
+  // TODO: Do not subscribe if race is finished
+  useSubscription(TeamsPositionsLatestResource.get, {
+    id: `${id}`,
+  });
+
+  console.log('teamsPositions', teamsPositions);
 
   const [teamsSearchText, setTeamsSearchText] = useState('' as string);
   const [teamsSearchTags, setTeamsSearchTags] = useState(
@@ -539,6 +546,7 @@ const Race = () => {
                         courseDistance={raceSetup.courseDistance()}
                         isInWatchlist={isInWatchlist}
                         onWatchlistButtonClick={onWatchlistButtonClick}
+                        onCardPress={onWatchlistButtonClick}
                       />
                     );
                   })}
