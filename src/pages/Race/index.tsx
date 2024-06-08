@@ -51,10 +51,15 @@ import {
   SidebarFooter,
   SidebarHeader,
   useDisclosure,
-} from '@components/Sidebar.tsx';
+} from '@components/Sidebar';
+
+import { distanceBetweenPoints } from '@utils/distanceBetweenPoints';
 
 import { TeamCard } from './components/TeamCard';
+import { distanceConverter } from '@utils/distanceConverter.ts';
 
+const timeSearchParam = 'time';
+const teamSearchParam = 'team';
 const watchlistTagId = 'watchlist';
 
 const formatSliderValue = (value: SliderValue) => {
@@ -89,8 +94,6 @@ const Race = () => {
     id: `${id}`,
   });
 
-  console.log('teamsPositions', teamsPositions);
-
   const [teamsSearchText, setTeamsSearchText] = useState('' as string);
   const [teamsSearchTags, setTeamsSearchTags] = useState(
     Array<number | string>,
@@ -107,13 +110,13 @@ const Race = () => {
     [courseMainNodes],
   );
 
-  const ts = useMemo(() => {
-    const value = searchParams.get('ts');
+  const time = useMemo(() => {
+    const value = searchParams.get(timeSearchParam);
     return parseInt(value ?? '');
   }, [searchParams]);
 
   const watchlist = useMemo(() => {
-    const value = searchParams.getAll('id');
+    const value = searchParams.getAll(teamSearchParam);
     return value.map((v) => parseInt(v));
   }, [searchParams]);
 
@@ -130,12 +133,12 @@ const Race = () => {
   const positionsAtHash = useMemo(() => {
     return teamsPositions.reduce(
       (acc, positions: TeamPosition) => {
-        acc[positions.id] = ts ? positions.positionsAt(ts) : [];
+        acc[positions.id] = time ? positions.positionsAt(time) : [];
         return acc;
       },
       {} as Record<number, RaceMoment[]>,
     );
-  }, [teamsPositions, ts]);
+  }, [teamsPositions, time]);
 
   // const teamsFiltered = useMemo(() => {
   //   return raceSetup.teams.filter((team: Team) => {
@@ -251,15 +254,15 @@ const Race = () => {
   const onWatchlistButtonClick = useCallback(
     (teamId: number) => {
       setSearchParams((prevValue) => {
-        const ids = prevValue.getAll('id');
+        const ids = prevValue.getAll(teamSearchParam);
         const index = ids.indexOf(`${teamId}`);
         if (index === -1) {
           ids.push(`${teamId}`);
         } else {
           ids.splice(index, 1);
         }
-        prevValue.delete('id');
-        ids.forEach((id) => prevValue.append('id', id));
+        prevValue.delete(teamSearchParam);
+        ids.forEach((id) => prevValue.append(teamSearchParam, id));
         return prevValue;
       });
     },
@@ -273,7 +276,7 @@ const Race = () => {
       }
       const v = Array.isArray(value) ? value[0] : value;
       setSearchParams((prevValue) => {
-        prevValue.set('ts', `${v}`);
+        prevValue.set(timeSearchParam, `${v}`);
         return prevValue;
       });
     },
@@ -281,16 +284,16 @@ const Race = () => {
   );
 
   useEffect(() => {
-    if (ts) {
+    if (time) {
       return;
     }
 
     const nextValue = raceSetup.stop ? raceSetup.stop * 1000 : Date.now();
     setSearchParams((prevValue) => {
-      prevValue.set('ts', `${nextValue}`);
+      prevValue.set(timeSearchParam, `${nextValue}`);
       return prevValue;
     });
-  }, [raceSetup.stop, setSearchParams, ts]);
+  }, [raceSetup.stop, setSearchParams, time]);
 
   const firstRender = useRef(true);
   useEffect(() => {
@@ -357,6 +360,18 @@ const Race = () => {
           const maxPositionsLength = isSelected ? 50 : 10;
 
           const positionAt = positionsAt[positionsAt.length - 1];
+          const prevPositionAt =
+            positionsAt.length > 1
+              ? positionsAt[positionsAt.length - 2]
+              : positionAt;
+          const distanceBetweenPositions = distanceBetweenPoints(
+            positionAt,
+            prevPositionAt,
+          );
+          const timeBetweenPositions = positionAt.at - prevPositionAt.at;
+          const speed =
+            (distanceBetweenPositions / timeBetweenPositions) * 1000;
+
           const positionLatLon = L.latLng(positionAt.lat, positionAt.lon);
           if (positionsAt.length > maxPositionsLength) {
             positionsAt.splice(0, positionsAt.length - maxPositionsLength);
@@ -383,7 +398,7 @@ const Race = () => {
                 />
               )}
 
-              {!!positionAt.dtf && (
+              {!!positionAt.distanceToFinish() && (
                 <Polyline
                   positions={trackLatLon}
                   color={color}
@@ -406,6 +421,7 @@ const Race = () => {
                   <TeamCard
                     team={team}
                     position={positionAt}
+                    speed={speed}
                     courseDistance={raceSetup.courseDistance()}
                     isInWatchlist={isInWatchlist}
                     onWatchlistButtonClick={onWatchlistButtonClick}
@@ -526,6 +542,7 @@ const Race = () => {
                     ))}
                 </div>
               </SidebarHeader>
+
               <SidebarBody>
                 <div className="flex flex-row flex-wrap !gap-4">
                   {raceSetup.teams.map((team: Team) => {
@@ -538,11 +555,25 @@ const Race = () => {
                     }
                     const isInWatchlist = watchlist.includes(team.id);
                     const positionAt = positionsAt[positionsAt.length - 1];
+                    const prevPositionAt =
+                      positionsAt.length > 1
+                        ? positionsAt[positionsAt.length - 2]
+                        : positionAt;
+                    const distanceBetweenPositions = distanceBetweenPoints(
+                      positionAt,
+                      prevPositionAt,
+                    );
+                    const timeBetweenPositions =
+                      positionAt.at - prevPositionAt.at;
+                    const speed =
+                      (distanceBetweenPositions / timeBetweenPositions) * 1000;
+
                     return (
                       <TeamCard
                         key={team.pk()}
                         team={team}
                         position={positionAt}
+                        speed={speed}
                         courseDistance={raceSetup.courseDistance()}
                         isInWatchlist={isInWatchlist}
                         onWatchlistButtonClick={onWatchlistButtonClick}
@@ -552,6 +583,7 @@ const Race = () => {
                   })}
                 </div>
               </SidebarBody>
+
               <SidebarFooter>
                 <Button color="default" variant="light" onPress={onClose}>
                   Close
@@ -633,7 +665,7 @@ const Race = () => {
         getValue={formatSliderValue}
         minValue={raceSetup.startInMilliseconds()}
         maxValue={raceSetup.stopInMilliseconds()}
-        value={ts}
+        value={time}
         step={6000}
         onChange={onTimeSliderChange}
       />

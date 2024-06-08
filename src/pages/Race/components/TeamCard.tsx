@@ -17,21 +17,25 @@ export const TeamCard = (props) => {
   const {
     team,
     position,
+    speed,
     courseDistance,
     isInWatchlist,
     onWatchlistButtonClick,
     onCardPress,
   } = props;
 
-  const distanceLabel = !position.dtf
-    ? 'Finish'
-    : `${Math.round(position.dtf / 100)} NM`;
+  const isFinished = !position.distanceToFinish();
+  const distanceLabel = isFinished
+    ? 'Finished'
+    : `${(position.distanceToFinish() / 1000).toFixed(1)} NM`;
+
+  const speedLabel = isFinished ? '0' : `${speed.toFixed(2)}`;
 
   return (
     <Card
       className="py-4 w-72 min-w-72 h-auto min-h-auto"
-      onPress={() => onCardPress?.(team.id)}
-      isPressable={!!onCardPress}
+      // onPress={() => onCardPress?.(team.id)}
+      // isPressable={!!onCardPress}
     >
       <CardHeader className="flex-row items-center gap-4 py-0 px-4">
         <ReactCountryFlag
@@ -70,13 +74,18 @@ export const TeamCard = (props) => {
         />
       </CardBody>
 
-      <CardFooter>
+      <CardFooter className="flex flex-col !items-start gap-4 text-small">
+        <div className="flex flex-row justify-between w-full">
+          <span className="text-small">Speed</span>
+          <span className="text-small">{speedLabel}</span>
+        </div>
+
         <Progress
           size="sm"
           label="Distance to finish"
           aria-label="Distance to finish"
           valueLabel={distanceLabel}
-          value={courseDistance - position.dtf}
+          value={courseDistance - position.distanceToFinish()}
           maxValue={courseDistance}
           showValueLabel={true}
         />

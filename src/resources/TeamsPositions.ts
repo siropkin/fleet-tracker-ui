@@ -1,5 +1,6 @@
 import { createResource, Entity } from '@data-client/rest';
 import L from 'leaflet';
+import { distanceConverter } from '@utils/distanceConverter.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -46,6 +47,10 @@ export class RaceMoment extends Entity {
       return 0;
     }
     return this.at * 1000;
+  }
+
+  distanceToFinish(units?: string): number {
+    return distanceConverter(this.dtf, units);
   }
 
   // static schema = {

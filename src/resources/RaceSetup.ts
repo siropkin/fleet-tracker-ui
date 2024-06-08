@@ -1,14 +1,8 @@
 import { createResource, Entity } from '@data-client/rest';
 import L from 'leaflet';
+import { distanceConverter } from '@utils/distanceConverter';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-//         "logo": {
-//             "x": 10,
-//             "y": 10,
-//             "href": "http://caribbean600.rorc.org/",
-//             "url": "http://cdn.yb.tl/race_logos/c6002017.png"
-//         },
 
 export class CourseNode extends Entity {
   name: string | undefined = undefined;
@@ -169,11 +163,11 @@ export class RaceSetup extends Entity {
     );
   }
 
-  courseDistance(): number {
+  courseDistance(units?: string): number {
     if (!this.course.distance) {
       return 0;
     }
-    return this.course.distance * 1000;
+    return distanceConverter(this.course.distance * 1000, units);
   }
 
   startInMilliseconds(): number {
