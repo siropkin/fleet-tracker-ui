@@ -1,28 +1,22 @@
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useSuspense, useSubscription } from '@data-client/react';
 import {
   Button,
+  ButtonGroup,
   Card,
   CardHeader,
-  Chip,
-  Input,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
   Link,
   Listbox,
   ListboxItem,
   ListboxSection,
   Slider,
   SliderValue,
-  Tab,
-  Tabs,
   useDisclosure,
 } from '@nextui-org/react';
 import {
@@ -33,7 +27,6 @@ import {
   Polyline,
   Popup,
   TileLayer,
-  useMap,
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -48,7 +41,6 @@ import {
 
 import { SearchIcon } from '@icons/SearchIcon';
 import { NotificationIcon } from '@icons/NotificationIcon';
-import { EyeIcon } from '@icons/EyeIcon';
 import { ShareIcon } from '@icons/ShareIcon';
 
 import { distanceBetweenPoints } from '@utils/distanceBetweenPoints';
@@ -78,18 +70,6 @@ const makeTeamMarkerIconHtml = (team: Team) => {
     </div>,
   );
 };
-
-const FlyToButton = ({ position, onClick, ...tail }) => {
-  const map = useMap();
-  const doClick = useCallback(() => {
-    map.flyTo(position, 10, { animate: false });
-    onClick?.();
-  }, [map, position, onClick]);
-
-  return <Button {...tail} onClick={doClick} />;
-};
-
-const FlyToOn = '';
 
 const Race = () => {
   const { id } = useParams();
@@ -147,7 +127,7 @@ const Race = () => {
     );
   }, [raceSetup.tags]);
 
-  const teamsToWatchFixed = useMemo(() => {
+  const teamsToWatch = useMemo(() => {
     if (!timeToWatchTs || !classToWatchId) {
       return [];
     }
@@ -167,12 +147,8 @@ const Race = () => {
     }, []);
   }, [classToWatchId, raceSetup.teams, teamsPositions, timeToWatchTs]);
 
-  const teamToWatch = useMemo(() => {
-    return teamsToWatchFixed.find((team: Team) => team.id === teamToWatchId);
-  }, [teamToWatchId, teamsToWatchFixed]);
-
   const leaderBoard = useMemo(() => {
-    return teamsToWatchFixed.sort((a: Team, b: Team) => {
+    return teamsToWatch.sort((a: Team, b: Team) => {
       const aMoments = a.moments;
       const bMoments = b.moments;
 
@@ -185,52 +161,57 @@ const Race = () => {
 
       return aCurrentPosition.dtf - bCurrentPosition.dtf;
     });
-  }, [teamsToWatchFixed]);
+  }, [teamsToWatch]);
 
-  // const positionsAtHash = useMemo(() => {
-  //   return teamsPositions.reduce(
-  //     (acc, positions: TeamPosition) => {
-  //       acc[positions.id] = timeToWatchTs
-  //         ? positions.positionsAt(timeToWatchTs)
-  //         : [];
-  //       return acc;
-  //     },
-  //     {} as Record<number, RaceMoment[]>,
-  //   );
-  // }, [teamsPositions, timeToWatchTs]);
+  const teamToWatch = useMemo(() => {
+    return teamsToWatch.find((team: Team) => team.id === teamToWatchId);
+  }, [teamToWatchId, teamsToWatch]);
 
-  // const teamsFiltered = useMemo(() => {
-  //   return raceSetup.teams.filter((team: Team) => {
-  //     if (teamClassFilter.length) {
-  //       if (!team.tags.some((tag: number) => teamClassFilter.includes(tag))) {
-  //         return null;
-  //       }
-  //     }
-  //     return team;
-  //   });
-  // }, [raceSetup.teams, teamClassFilter]);
-  //
-  // const teamsSorted = useMemo(() => {
-  //   return teamsFiltered.sort((a: Team, b: Team) => {
-  //     const aPositions = teamsPositionsAtHash[a.id];
-  //     const bPositions = teamsPositionsAtHash[b.id];
-  //
-  //     if (!aPositions?.length || !bPositions?.length) {
-  //       return 0;
-  //     }
-  //
-  //     const aPosition = aPositions[aPositions.length - 1];
-  //     const bPosition = bPositions[bPositions.length - 1];
-  //
-  //     return aPosition.dtf - bPosition.dtf;
-  //   });
-  // }, [teamsFiltered, teamsPositionsAtHash]);
+  const teamToWatchCurrentPosition = useMemo(() => {
+    return teamToWatch?.moments[teamToWatch.moments.length - 1];
+  }, [teamToWatch?.moments]);
+
+  const teamToWatchProgress = useMemo(() => {
+    if (!teamToWatchCurrentPosition) {
+      return 0;
+    }
+    const maxDistance = raceSetup.course.distance;
+    const currentDistance = maxDistance - teamToWatchCurrentPosition.dtf / 1000;
+    return currentDistance / maxDistance;
+  }, [raceSetup, teamToWatchCurrentPosition]);
+
+  const teamToWatchSpeed = useMemo(() => {
+    if (!teamToWatch?.moments?.length) {
+      return 0;
+    }
+    const currentPosition = teamToWatch.moments[teamToWatch.moments.length - 1];
+    const prevPosition =
+      teamToWatch.moments.length > 1
+        ? teamToWatch.moments[teamToWatch.moments.length - 2]
+        : currentPosition;
+    const distanceBetweenPositions = distanceBetweenPoints(
+      currentPosition,
+      prevPosition,
+    );
+    const timeBetweenPositions = currentPosition.at - prevPosition.at;
+    if (!timeBetweenPositions) {
+      return 0;
+    }
+    return (distanceBetweenPositions / timeBetweenPositions) * 1000;
+  }, [teamToWatch.moments]);
+
+  const teamToWatchLeaderBoardPosition = useMemo(() => {
+    if (!teamToWatchId) {
+      return 0;
+    }
+    return leaderBoard.findIndex((team) => teamToWatchId === team.id);
+  }, [leaderBoard, teamToWatchId]);
 
   const onTeamToWatchChange = useCallback(
     (value: Team) => {
       setSearchParams((prevValue) => {
         prevValue.set(TEAM_SEARCH_PARAM, `${value.id}`);
-        prevValue.set(CLASS_SEARCH_PARAM, `${value.tags[0]}`);
+        // prevValue.set(CLASS_SEARCH_PARAM, `${value.tags[0]}`);
         return prevValue;
       });
     },
@@ -239,7 +220,6 @@ const Race = () => {
 
   const onClassToWatchChange = useCallback(
     (value: number) => {
-      console.log('onClassToWatchChange', value);
       setSearchParams((prevValue) => {
         prevValue.set(CLASS_SEARCH_PARAM, `${value}`);
         return prevValue;
@@ -285,6 +265,10 @@ const Race = () => {
   }, [raceSetup.teams, teamToWatch, onTeamSearchOpen]);
 
   useEffect(() => {
+    teamToWatchCurrentPosition && onFlyToTeam(teamToWatch);
+  }, [teamToWatchCurrentPosition, onFlyToTeam, teamToWatch]);
+
+  useEffect(() => {
     if (timeToWatchTs) {
       return;
     }
@@ -297,7 +281,7 @@ const Race = () => {
   }, [raceSetup.start, setSearchParams, timeToWatchTs]);
 
   useEffect(() => {
-    if (!raceSetup.teams?.length || !!teamToWatch || classToWatchId) {
+    if (!raceSetup.teams?.length || !teamToWatch || classToWatchId) {
       return undefined;
     }
 
@@ -343,7 +327,7 @@ const Race = () => {
           </CircleMarker>
         ))}
 
-        {teamsToWatchFixed.map((team: Team) => {
+        {teamsToWatch.map((team: Team) => {
           // const isInWatchlist = team.id === teamToWatchId;
           const isInWatchlist = true;
 
@@ -437,127 +421,33 @@ const Race = () => {
         })}
       </MapContainer>
 
-      <div className="absolute z-500 top-5 left-5 h-12 flex flex-row items-center gap-4 ">
-        <Link
-          className="text-2xl"
-          href={raceSetup.logo.href}
-          color="foreground"
-          isExternal
-        >
-          {raceSetup.title}
-        </Link>
-
-        {!!teamToWatch && (
-          <Fragment>
-            <div className="text-2xl">\</div>
-            <Button
-              className="text-2xl"
-              color="default"
-              variant="light"
-              // size="sm"
-              aria-label="Fly to"
-              onPress={() => onFlyToTeam(teamToWatch)}
-            >
-              {teamToWatch?.name}
-            </Button>
-          </Fragment>
-        )}
-      </div>
-
-      <div className="absolute z-500 top-5 right-5 flex gap-4 items-center">
-        <Button
-          color="default"
-          variant="light"
-          size="lg"
-          aria-label="Search"
-          onPress={onTeamSearchOpen}
-          isIconOnly
-        >
-          <SearchIcon />
-        </Button>
-
-        <Button
-          color="default"
-          variant="light"
-          size="lg"
-          aria-label="Notifications"
-          onPress={() => {}}
-          isIconOnly
-        >
-          <NotificationIcon />
-        </Button>
-
-        <Button
-          color="default"
-          variant="light"
-          size="lg"
-          aria-label="Share"
-          onPress={() => {}}
-          isIconOnly
-        >
-          <ShareIcon />
-        </Button>
-      </div>
-
-      {/*<ButtonGroup*/}
-      {/*  className="absolute z-999 top-10 left-0 right-0 w-3/5 mx-auto"*/}
-      {/*  size="sm"*/}
-      {/*>*/}
-      {/*  {raceSetup.tags*/}
-      {/*    .sort((a: Tag, b: Tag) => a.sort - b.sort)*/}
-      {/*    .map((tag: Tag) => {*/}
-      {/*      let color;*/}
-      {/*      if (teamClassFilter.length) {*/}
-      {/*        color = teamClassFilter.includes(tag.id)*/}
-      {/*          ? 'primary'*/}
-      {/*          : 'default';*/}
-      {/*      } else {*/}
-      {/*        color = 'primary';*/}
-      {/*      }*/}
-      {/*      return (*/}
-      {/*        <Button*/}
-      {/*          key={tag.pk()}*/}
-      {/*          color={color}*/}
-      {/*          onClick={() => onClassButtonClick(tag)}*/}
-      {/*        >*/}
-      {/*          {tag.name}*/}
-      {/*        </Button>*/}
-      {/*      );*/}
-      {/*    })}*/}
-      {/*</ButtonGroup>*/}
-
       {teamToWatch && (
-        <div className="absolute z-500 top-[50%] left-5 -translate-y-2/4 flex flex-col overflow-y-auto max-h-[70%]">
-          <Tabs
-            aria-label="Classes"
-            selectedKey={`${classToWatchId}`}
-            onSelectionChange={onClassToWatchChange}
-          >
-            {teamToWatch?.tags.map((id: number) => {
-              const tag = tagsHash[id];
-              return <Tab key={tag.pk()} title={tag.name} />;
-            })}
-          </Tabs>
+        <div className="absolute z-500 top-5 left-5 flex flex-col gap-8 max-h-[50%] overflow-hidden">
+          <div className="flex items-end gap-1">
+            <div className="text-2xl uppercase">Pos</div>
+            <div className="text-8xl">{teamToWatchLeaderBoardPosition + 1}</div>
+            <div className="text-2xl">/</div>
+            <div className="text-2xl">{leaderBoard.length}</div>
+          </div>
 
           <Listbox
             classNames={{
-              // base: 'absolute z-500 top-0 bottom-0 right-10 max-w-xs my-auto py-20',
-              base: 'max-w-xs my-auto py-20',
-              list: 'max-h-full overflow-y-auto my-auto px-1',
+              base: 'overflow-y-auto p-0',
             }}
-            // variant="flat"
-            variant="faded"
-            label="Teams"
-            // selectionMode="multiple"
-            // selectedKeys={teamIdFilter.map((id) => `${id}`)}
-            selectedKeys={teamToWatch ? teamToWatch.pk() : ''}
-            // onSelectionChange={onTeamButtonClick}
-            onSelectionChange={onTeamToWatchChange}
-            onChange={onTeamToWatchChange}
+            variant="flat"
+            label="Leaderboard"
           >
-            <ListboxSection title="Leaderboard">
+            <ListboxSection>
               {leaderBoard.map((team: Team, index: number) => (
-                <ListboxItem key={team.pk()} startContent={index + 1}>
+                <ListboxItem
+                  key={team.pk()}
+                  classNames={{
+                    base: `px-0 text-2xl ${teamToWatch?.id === team.id ? 'bg-cyan-500' : ''}`,
+                    title: 'text-2xl',
+                  }}
+                  startContent={index + 1}
+                  onPress={() => onTeamToWatchChange(team)}
+                >
                   {team.name}
                 </ListboxItem>
               ))}
@@ -566,15 +456,96 @@ const Race = () => {
         </div>
       )}
 
-      {/*<TeamSearchBar*/}
-      {/*  teams={raceSetup.teams}*/}
-      {/*  selectedTeams={teamIdFilter}*/}
-      {/*  tagsHash={tagsHash}*/}
-      {/*  isTeamSearchOpen={isTeamSearchOpen}*/}
-      {/*  onTeamSearchOpenChange={onTeamSearchOpenChange}*/}
-      {/*  onTeamClick={onTeamClick}*/}
-      {/*  onFilteredChange={setTeamIdFilterSearch}*/}
-      {/*/>*/}
+      {teamToWatch && (
+        <div className="absolute z-500 top-5 right-5 flex flex-col">
+          <div className="flex flex-row items-end  gap-1">
+            <div className="text-2xl uppercase">Progress</div>
+            <div className="text-8xl">
+              {Math.round(teamToWatchProgress * 100)}%
+            </div>
+          </div>
+        </div>
+      )}
+
+      {teamToWatch && (
+        <div className="absolute z-500 bottom-5 right-5 flex flex-col">
+          <div className="flex flex-row items-end  gap-1">
+            <div className="text-2xl uppercase">Speed</div>
+            <div className="text-8xl">
+              {Math.round(teamToWatchSpeed * 10) / 10} kts
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="absolute z-500 top-5 right-[50%] translate-x-[50%] flex flex-col gap-2">
+        <div className="flex flex-row items-end">
+          <Link
+            className="text-8xl"
+            href={raceSetup.logo.href}
+            color="foreground"
+            isExternal
+          >
+            {raceSetup.title}
+          </Link>
+
+          <Dropdown>
+            <DropdownTrigger>
+              <div className="text-2xl cursor-pointer">
+                / {tagsHash[classToWatchId]?.name}
+              </div>
+            </DropdownTrigger>
+            <DropdownMenu aria-label="Classes">
+              {teamToWatch?.tags.map((id: number) => {
+                const tag = tagsHash[id];
+                return (
+                  <DropdownItem
+                    key={tag.pk()}
+                    onClick={() => onClassToWatchChange(id)}
+                  >
+                    {tag.name}
+                  </DropdownItem>
+                );
+              })}
+            </DropdownMenu>
+          </Dropdown>
+        </div>
+
+        <ButtonGroup>
+          <Button
+            color="default"
+            variant="light"
+            size="lg"
+            aria-label="Search"
+            onPress={onTeamSearchOpen}
+            isIconOnly
+          >
+            <SearchIcon />
+          </Button>
+
+          <Button
+            color="default"
+            variant="light"
+            size="lg"
+            aria-label="Notifications"
+            onPress={() => {}}
+            isIconOnly
+          >
+            <NotificationIcon />
+          </Button>
+
+          <Button
+            color="default"
+            variant="light"
+            size="lg"
+            aria-label="Share"
+            onPress={() => {}}
+            isIconOnly
+          >
+            <ShareIcon />
+          </Button>
+        </ButtonGroup>
+      </div>
 
       <TeamSearch
         teams={raceSetup.teams}

@@ -168,7 +168,7 @@ export class RaceSetup extends Entity {
     if (!this.course.distance) {
       return 0;
     }
-    return distanceConverter(this.course.distance * 1000, units);
+    return this.course.distance;
   }
 
   startInMilliseconds(): number {
