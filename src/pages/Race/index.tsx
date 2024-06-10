@@ -16,8 +16,14 @@ import {
   Chip,
   Input,
   Link,
+  Listbox,
+  ListboxItem,
+  ListboxSection,
   Slider,
   SliderValue,
+  Tab,
+  Tabs,
+  useDisclosure,
 } from '@nextui-org/react';
 import {
   CircleMarker,
@@ -27,6 +33,7 @@ import {
   Polyline,
   Popup,
   TileLayer,
+  useMap,
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -44,23 +51,14 @@ import { NotificationIcon } from '@icons/NotificationIcon';
 import { EyeIcon } from '@icons/EyeIcon';
 import { ShareIcon } from '@icons/ShareIcon';
 
-import {
-  Sidebar,
-  SidebarBody,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  useDisclosure,
-} from '@components/Sidebar';
-
 import { distanceBetweenPoints } from '@utils/distanceBetweenPoints';
 
 import { TeamCard } from './components/TeamCard';
-import { distanceConverter } from '@utils/distanceConverter.ts';
+import { TeamSearch } from './components/TeamSearch';
 
-const timeSearchParam = 'time';
-const teamSearchParam = 'team';
-const watchlistTagId = 'watchlist';
+const TIME_SEARCH_PARAM = 'time';
+const TEAM_SEARCH_PARAM = 'team';
+const CLASS_SEARCH_PARAM = 'class';
 
 const formatSliderValue = (value: SliderValue) => {
   if (!value) {
@@ -81,6 +79,18 @@ const makeTeamMarkerIconHtml = (team: Team) => {
   );
 };
 
+const FlyToButton = ({ position, onClick, ...tail }) => {
+  const map = useMap();
+  const doClick = useCallback(() => {
+    map.flyTo(position, 10, { animate: false });
+    onClick?.();
+  }, [map, position, onClick]);
+
+  return <Button {...tail} onClick={doClick} />;
+};
+
+const FlyToOn = '';
+
 const Race = () => {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,11 +104,13 @@ const Race = () => {
     id: `${id}`,
   });
 
-  const [teamsSearchText, setTeamsSearchText] = useState('' as string);
-  const [teamsSearchTags, setTeamsSearchTags] = useState(
-    Array<number | string>,
-  );
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const {
+    isOpen: isTeamSearchOpen,
+    onOpen: onTeamSearchOpen,
+    onOpenChange: onTeamSearchOpenChange,
+  } = useDisclosure();
+
+  const [map, setMap] = useState();
 
   const courseMainNodes = useMemo(
     () => raceSetup.courseMainNodes(),
@@ -110,14 +122,19 @@ const Race = () => {
     [courseMainNodes],
   );
 
-  const time = useMemo(() => {
-    const value = searchParams.get(timeSearchParam);
+  const timeToWatchTs = useMemo(() => {
+    const value = searchParams.get(TIME_SEARCH_PARAM);
     return parseInt(value ?? '');
   }, [searchParams]);
 
-  const watchlist = useMemo(() => {
-    const value = searchParams.getAll(teamSearchParam);
-    return value.map((v) => parseInt(v));
+  const teamToWatchId = useMemo(() => {
+    const value = searchParams.get(TEAM_SEARCH_PARAM);
+    return parseInt(value ?? '');
+  }, [searchParams]);
+
+  const classToWatchId = useMemo(() => {
+    const value = searchParams.get(CLASS_SEARCH_PARAM);
+    return parseInt(value ?? '');
   }, [searchParams]);
 
   const tagsHash = useMemo(() => {
@@ -130,15 +147,57 @@ const Race = () => {
     );
   }, [raceSetup.tags]);
 
-  const positionsAtHash = useMemo(() => {
-    return teamsPositions.reduce(
-      (acc, positions: TeamPosition) => {
-        acc[positions.id] = time ? positions.positionsAt(time) : [];
+  const teamsToWatchFixed = useMemo(() => {
+    if (!timeToWatchTs || !classToWatchId) {
+      return [];
+    }
+    return raceSetup.teams.reduce((acc, team: Team) => {
+      if (!team.tags.includes(classToWatchId)) {
         return acc;
-      },
-      {} as Record<number, RaceMoment[]>,
-    );
-  }, [teamsPositions, time]);
+      }
+      const moments = teamsPositions
+        .find((positions: TeamPosition) => positions.id === team.id)
+        ?.positionsAt(timeToWatchTs);
+      if (!moments) {
+        return null;
+      }
+      team.moments = moments;
+      acc.push(team);
+      return acc;
+    }, []);
+  }, [classToWatchId, raceSetup.teams, teamsPositions, timeToWatchTs]);
+
+  const teamToWatch = useMemo(() => {
+    return teamsToWatchFixed.find((team: Team) => team.id === teamToWatchId);
+  }, [teamToWatchId, teamsToWatchFixed]);
+
+  const leaderBoard = useMemo(() => {
+    return teamsToWatchFixed.sort((a: Team, b: Team) => {
+      const aMoments = a.moments;
+      const bMoments = b.moments;
+
+      if (!aMoments?.length || !bMoments?.length) {
+        return 0;
+      }
+
+      const aCurrentPosition = aMoments[aMoments.length - 1];
+      const bCurrentPosition = bMoments[bMoments.length - 1];
+
+      return aCurrentPosition.dtf - bCurrentPosition.dtf;
+    });
+  }, [teamsToWatchFixed]);
+
+  // const positionsAtHash = useMemo(() => {
+  //   return teamsPositions.reduce(
+  //     (acc, positions: TeamPosition) => {
+  //       acc[positions.id] = timeToWatchTs
+  //         ? positions.positionsAt(timeToWatchTs)
+  //         : [];
+  //       return acc;
+  //     },
+  //     {} as Record<number, RaceMoment[]>,
+  //   );
+  // }, [teamsPositions, timeToWatchTs]);
 
   // const teamsFiltered = useMemo(() => {
   //   return raceSetup.teams.filter((team: Team) => {
@@ -167,102 +226,22 @@ const Race = () => {
   //   });
   // }, [teamsFiltered, teamsPositionsAtHash]);
 
-  const searchResult = useMemo(() => {
-    if (!teamsSearchText && !teamsSearchTags.length) {
-      return raceSetup.teams.map((team: Team) => team.id);
-    }
-    const textFilterFixed = teamsSearchText.trim().toLowerCase();
-    return raceSetup.teams.reduce((acc: number[], team: Team) => {
-      let textMatch = !textFilterFixed;
-      let tagsMatch = !teamsSearchTags.length;
-
-      if (
-        !textMatch &&
-        textFilterFixed &&
-        team.name.toLowerCase().includes(textFilterFixed)
-      ) {
-        textMatch = true;
-      }
-
-      if (
-        !textMatch &&
-        textFilterFixed &&
-        team.captain.toLowerCase().includes(textFilterFixed)
-      ) {
-        textMatch = true;
-      }
-
-      if (
-        !textMatch &&
-        textFilterFixed &&
-        team.country.toLowerCase().includes(textFilterFixed)
-      ) {
-        textMatch = true;
-      }
-
-      if (
-        !textMatch &&
-        textFilterFixed &&
-        team.flag.toLowerCase().includes(textFilterFixed)
-      ) {
-        textMatch = true;
-      }
-
-      if (
-        !textMatch &&
-        textFilterFixed &&
-        team.model.toLowerCase().includes(textFilterFixed)
-      ) {
-        textMatch = true;
-      }
-
-      const checkForWatchlist =
-        teamsSearchTags.length && teamsSearchTags.includes(watchlistTagId);
-      const searchTags = teamsSearchTags.filter(
-        (tag) => tag !== watchlistTagId,
-      );
-
-      if (!tagsMatch && checkForWatchlist) {
-        tagsMatch = watchlist.includes(team.id);
-      }
-
-      if (!tagsMatch && searchTags.length) {
-        tagsMatch = team.tags.some((tag: number) => searchTags.includes(tag));
-      }
-
-      if (textMatch && tagsMatch) {
-        acc.push(team.id);
-      }
-
-      return acc;
-    }, []);
-  }, [raceSetup.teams, watchlist, teamsSearchTags, teamsSearchText]);
-
-  const onSearchTagClick = useCallback((tagId: number | string) => {
-    setTeamsSearchTags((prevValue) => {
-      const next = [...prevValue];
-      const index = next.indexOf(tagId);
-      if (index === -1) {
-        next.push(tagId);
-      } else {
-        next.splice(index, 1);
-      }
-      return next;
-    });
-  }, []);
-
-  const onWatchlistButtonClick = useCallback(
-    (teamId: number) => {
+  const onTeamToWatchChange = useCallback(
+    (value: Team) => {
       setSearchParams((prevValue) => {
-        const ids = prevValue.getAll(teamSearchParam);
-        const index = ids.indexOf(`${teamId}`);
-        if (index === -1) {
-          ids.push(`${teamId}`);
-        } else {
-          ids.splice(index, 1);
-        }
-        prevValue.delete(teamSearchParam);
-        ids.forEach((id) => prevValue.append(teamSearchParam, id));
+        prevValue.set(TEAM_SEARCH_PARAM, `${value.id}`);
+        prevValue.set(CLASS_SEARCH_PARAM, `${value.tags[0]}`);
+        return prevValue;
+      });
+    },
+    [setSearchParams],
+  );
+
+  const onClassToWatchChange = useCallback(
+    (value: number) => {
+      console.log('onClassToWatchChange', value);
+      setSearchParams((prevValue) => {
+        prevValue.set(CLASS_SEARCH_PARAM, `${value}`);
         return prevValue;
       });
     },
@@ -274,48 +253,65 @@ const Race = () => {
       if (!value) {
         return;
       }
-      const v = Array.isArray(value) ? value[0] : value;
+      const nextValue = Array.isArray(value) ? value[0] : value;
       setSearchParams((prevValue) => {
-        prevValue.set(timeSearchParam, `${v}`);
+        prevValue.set(TIME_SEARCH_PARAM, `${nextValue}`);
         return prevValue;
       });
     },
     [setSearchParams],
   );
 
+  const onFlyToTeam = useCallback(
+    (team) => {
+      if (!map || !team.moments?.length) {
+        return;
+      }
+      const currentPosition = team.moments[team.moments.length - 1];
+      const currentPositionLatLon = L.latLng(
+        currentPosition.lat,
+        currentPosition.lon,
+      );
+      map.flyTo(currentPositionLatLon, 10, { animate: false });
+    },
+    [map],
+  );
+
   useEffect(() => {
-    if (time) {
+    if (!raceSetup.teams?.length || !!teamToWatch) {
+      return undefined;
+    }
+    onTeamSearchOpen();
+  }, [raceSetup.teams, teamToWatch, onTeamSearchOpen]);
+
+  useEffect(() => {
+    if (timeToWatchTs) {
       return;
     }
 
-    const nextValue = raceSetup.stop ? raceSetup.stop * 1000 : Date.now();
+    const nextValue = raceSetup.start ? raceSetup.start * 1000 : Date.now();
     setSearchParams((prevValue) => {
-      prevValue.set(timeSearchParam, `${nextValue}`);
+      prevValue.set(TIME_SEARCH_PARAM, `${nextValue}`);
       return prevValue;
     });
-  }, [raceSetup.stop, setSearchParams, time]);
+  }, [raceSetup.start, setSearchParams, timeToWatchTs]);
 
-  const firstRender = useRef(true);
   useEffect(() => {
-    if (!firstRender.current) {
+    if (!raceSetup.teams?.length || !!teamToWatch || classToWatchId) {
       return undefined;
     }
 
-    firstRender.current = false;
-    if (watchlist.length) {
-      return undefined;
-    }
-
-    onOpen();
-
-    return () => {
-      firstRender.current = true;
-    };
-  }, [watchlist.length, onOpen]);
+    const nextValue = teamToWatch.tags[0];
+    setSearchParams((prevValue) => {
+      prevValue.set(CLASS_SEARCH_PARAM, `${nextValue}`);
+      return prevValue;
+    });
+  }, [classToWatchId, teamToWatch, setSearchParams, raceSetup.teams]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
       <MapContainer
+        ref={setMap}
         style={{ minHeight: '100vh', minWidth: '100vw' }}
         boundsOptions={{ padding: [1, 1] }}
         bounds={mapBounds}
@@ -323,6 +319,11 @@ const Race = () => {
         zoomControl={false} // TODO: Turn them on to the right middle?
         attributionControl={false}
       >
+        <TileLayer
+          attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
         <Polygon
           positions={courseMainNodes}
           fillRule="nonzero"
@@ -342,41 +343,44 @@ const Race = () => {
           </CircleMarker>
         ))}
 
-        {raceSetup.teams.map((team: Team) => {
-          const positionsAt = positionsAtHash[team.id];
-          if (!positionsAt?.length) {
-            return null;
-          }
+        {teamsToWatchFixed.map((team: Team) => {
+          // const isInWatchlist = team.id === teamToWatchId;
+          const isInWatchlist = true;
 
-          const isInWatchlist = watchlist.includes(team.id);
+          // const isSelected = isTeamSearchOpen
+          //   ? teamsSearchResult.includes(team.id)
+          //   : isInWatchlist;
 
-          const isSelected = isOpen
-            ? searchResult.includes(team.id)
-            : isInWatchlist;
+          const isSelected = teamToWatch?.id === team.id;
 
           const radius = isSelected ? 8 : 4;
           const color = isSelected ? `#${team.colour}` : 'gray';
           const opacity = isSelected ? 1 : 0.3;
-          const maxPositionsLength = isSelected ? 50 : 10;
-
-          const positionAt = positionsAt[positionsAt.length - 1];
-          const prevPositionAt =
-            positionsAt.length > 1
-              ? positionsAt[positionsAt.length - 2]
-              : positionAt;
-          const distanceBetweenPositions = distanceBetweenPoints(
-            positionAt,
-            prevPositionAt,
-          );
-          const timeBetweenPositions = positionAt.at - prevPositionAt.at;
-          const speed =
-            (distanceBetweenPositions / timeBetweenPositions) * 1000;
-
-          const positionLatLon = L.latLng(positionAt.lat, positionAt.lon);
-          if (positionsAt.length > maxPositionsLength) {
-            positionsAt.splice(0, positionsAt.length - maxPositionsLength);
+          const maxMomentsLength = isSelected ? 50 : 10;
+          const moments = [...team.moments];
+          if (!moments.length) {
+            return null;
           }
-          const trackLatLon = positionsAt.map((moment: RaceMoment) =>
+          if (moments.length > maxMomentsLength) {
+            moments.splice(0, moments.length - maxMomentsLength);
+          }
+          const currentPosition = moments[moments.length - 1];
+          const prevPosition =
+            moments.length > 1 ? moments[moments.length - 2] : currentPosition;
+          // const distanceBetweenPositions = distanceBetweenPoints(
+          //   currentPosition,
+          //   prevPosition,
+          // );
+          // const timeBetweenPositions = currentPosition.at - prevPosition.at;
+          // const speed =
+          //   (distanceBetweenPositions / timeBetweenPositions) * 1000;
+
+          const currentPositionLatLon = L.latLng(
+            currentPosition.lat,
+            currentPosition.lon,
+          );
+
+          const trackLatLon = moments.map((moment: RaceMoment) =>
             moment.toLatLng(),
           );
 
@@ -384,7 +388,7 @@ const Race = () => {
             <Fragment key={team.pk() + isSelected}>
               {isSelected && (
                 <Marker
-                  position={positionLatLon}
+                  position={currentPositionLatLon}
                   opacity={opacity}
                   icon={L.divIcon({
                     className: `text-xl font-bold text-white cursor-default`,
@@ -398,7 +402,7 @@ const Race = () => {
                 />
               )}
 
-              {!!positionAt.distanceToFinish() && (
+              {!!currentPosition.distanceToFinish() && (
                 <Polyline
                   positions={trackLatLon}
                   color={color}
@@ -410,7 +414,7 @@ const Race = () => {
               )}
 
               <CircleMarker
-                center={positionLatLon}
+                center={currentPositionLatLon}
                 radius={radius}
                 color={color}
                 opacity={opacity}
@@ -420,32 +424,45 @@ const Race = () => {
                 <Popup>
                   <TeamCard
                     team={team}
-                    position={positionAt}
-                    speed={speed}
-                    courseDistance={raceSetup.courseDistance()}
-                    isInWatchlist={isInWatchlist}
-                    onWatchlistButtonClick={onWatchlistButtonClick}
+                    // position={currentPosition}
+                    // speed={speed}
+                    // courseDistance={raceSetup.courseDistance()}
+                    // isInWatchlist={isInWatchlist}
+                    onCardPress={() => onTeamToWatchChange(team)}
                   />
                 </Popup>
               </CircleMarker>
             </Fragment>
           );
         })}
-
-        <TileLayer
-          attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
       </MapContainer>
 
-      <Link
-        className="absolute z-500 top-5 left-5 h-12 flex items-center text-2xl"
-        href={raceSetup.logo.href}
-        color="foreground"
-        isExternal
-      >
-        {raceSetup.title}
-      </Link>
+      <div className="absolute z-500 top-5 left-5 h-12 flex flex-row items-center gap-4 ">
+        <Link
+          className="text-2xl"
+          href={raceSetup.logo.href}
+          color="foreground"
+          isExternal
+        >
+          {raceSetup.title}
+        </Link>
+
+        {!!teamToWatch && (
+          <Fragment>
+            <div className="text-2xl">\</div>
+            <Button
+              className="text-2xl"
+              color="default"
+              variant="light"
+              // size="sm"
+              aria-label="Fly to"
+              onPress={() => onFlyToTeam(teamToWatch)}
+            >
+              {teamToWatch?.name}
+            </Button>
+          </Fragment>
+        )}
+      </div>
 
       <div className="absolute z-500 top-5 right-5 flex gap-4 items-center">
         <Button
@@ -453,7 +470,7 @@ const Race = () => {
           variant="light"
           size="lg"
           aria-label="Search"
-          onPress={onOpen}
+          onPress={onTeamSearchOpen}
           isIconOnly
         >
           <SearchIcon />
@@ -482,118 +499,6 @@ const Race = () => {
         </Button>
       </div>
 
-      <Sidebar
-        classNames={{
-          wrapper: 'z-500',
-          body: 'overflow-y-auto',
-          backdrop: '-z-[1]',
-        }}
-        backdrop="opaque"
-        placement="right"
-        size="5xl"
-        isOpen={isOpen}
-        onOpenChange={onOpenChange}
-        isDismissable={false}
-        hideCloseButton
-      >
-        <SidebarContent>
-          {(onClose) => (
-            <Fragment>
-              <SidebarHeader className="flex flex-col gap-4">
-                <Input
-                  size="lg"
-                  placeholder="Search"
-                  startContent={<SearchIcon />}
-                  value={teamsSearchText}
-                  onValueChange={setTeamsSearchText}
-                  isClearable
-                  autoFocus
-                />
-                <div className="flex flex-wrap gap-4">
-                  <Chip
-                    className="cursor-pointer"
-                    color={
-                      teamsSearchTags.includes(watchlistTagId)
-                        ? 'primary'
-                        : 'default'
-                    }
-                    variant="flat"
-                    endContent={<EyeIcon />}
-                    onClick={() => onSearchTagClick(watchlistTagId)}
-                  >
-                    Watchlist
-                  </Chip>
-                  {raceSetup.tags
-                    .sort((a: Tag, b: Tag) => a.name.localeCompare(b.name))
-                    .map((tag: Tag) => (
-                      <Chip
-                        key={tag.pk()}
-                        className="cursor-pointer"
-                        color={
-                          teamsSearchTags.includes(tag.id)
-                            ? 'primary'
-                            : 'default'
-                        }
-                        variant="flat"
-                        onClick={() => onSearchTagClick(tag.id)}
-                      >
-                        {tag.name}
-                      </Chip>
-                    ))}
-                </div>
-              </SidebarHeader>
-
-              <SidebarBody>
-                <div className="flex flex-row flex-wrap !gap-4">
-                  {raceSetup.teams.map((team: Team) => {
-                    if (!searchResult.includes(team.id)) {
-                      return null;
-                    }
-                    const positionsAt = positionsAtHash[team.id];
-                    if (!positionsAt?.length) {
-                      return null;
-                    }
-                    const isInWatchlist = watchlist.includes(team.id);
-                    const positionAt = positionsAt[positionsAt.length - 1];
-                    const prevPositionAt =
-                      positionsAt.length > 1
-                        ? positionsAt[positionsAt.length - 2]
-                        : positionAt;
-                    const distanceBetweenPositions = distanceBetweenPoints(
-                      positionAt,
-                      prevPositionAt,
-                    );
-                    const timeBetweenPositions =
-                      positionAt.at - prevPositionAt.at;
-                    const speed =
-                      (distanceBetweenPositions / timeBetweenPositions) * 1000;
-
-                    return (
-                      <TeamCard
-                        key={team.pk()}
-                        team={team}
-                        position={positionAt}
-                        speed={speed}
-                        courseDistance={raceSetup.courseDistance()}
-                        isInWatchlist={isInWatchlist}
-                        onWatchlistButtonClick={onWatchlistButtonClick}
-                        onCardPress={onWatchlistButtonClick}
-                      />
-                    );
-                  })}
-                </div>
-              </SidebarBody>
-
-              <SidebarFooter>
-                <Button color="default" variant="light" onPress={onClose}>
-                  Close
-                </Button>
-              </SidebarFooter>
-            </Fragment>
-          )}
-        </SidebarContent>
-      </Sidebar>
-
       {/*<ButtonGroup*/}
       {/*  className="absolute z-999 top-10 left-0 right-0 w-3/5 mx-auto"*/}
       {/*  size="sm"*/}
@@ -621,36 +526,64 @@ const Race = () => {
       {/*    })}*/}
       {/*</ButtonGroup>*/}
 
-      {/*<Listbox*/}
-      {/*  classNames={{*/}
-      {/*    base: 'absolute z-999 top-0 bottom-0 right-10 max-w-xs my-auto py-20',*/}
-      {/*    list: 'max-h-full overflow-y-auto my-auto px-1',*/}
-      {/*  }}*/}
-      {/*  // variant="flat"*/}
-      {/*  variant="faded"*/}
-      {/*  label="Teams"*/}
-      {/*  selectionMode="multiple"*/}
-      {/*  selectedKeys={teamIdFilter.map((id) => `${id}`)}*/}
-      {/*  onSelectionChange={onTeamButtonClick}*/}
-      {/*>*/}
-      {/*  <ListboxSection title="Teams">*/}
-      {/*    {teamsSorted.map((team: Team, index: number) => (*/}
-      {/*      <ListboxItem key={team.pk()} startContent={index + 1}>*/}
-      {/*        {team.name}*/}
-      {/*      </ListboxItem>*/}
-      {/*    ))}*/}
-      {/*  </ListboxSection>*/}
-      {/*</Listbox>*/}
+      {teamToWatch && (
+        <div className="absolute z-500 top-[50%] left-5 -translate-y-2/4 flex flex-col overflow-y-auto max-h-[70%]">
+          <Tabs
+            aria-label="Classes"
+            selectedKey={`${classToWatchId}`}
+            onSelectionChange={onClassToWatchChange}
+          >
+            {teamToWatch?.tags.map((id: number) => {
+              const tag = tagsHash[id];
+              return <Tab key={tag.pk()} title={tag.name} />;
+            })}
+          </Tabs>
+
+          <Listbox
+            classNames={{
+              // base: 'absolute z-500 top-0 bottom-0 right-10 max-w-xs my-auto py-20',
+              base: 'max-w-xs my-auto py-20',
+              list: 'max-h-full overflow-y-auto my-auto px-1',
+            }}
+            // variant="flat"
+            variant="faded"
+            label="Teams"
+            // selectionMode="multiple"
+            // selectedKeys={teamIdFilter.map((id) => `${id}`)}
+            selectedKeys={teamToWatch ? teamToWatch.pk() : ''}
+            // onSelectionChange={onTeamButtonClick}
+            onSelectionChange={onTeamToWatchChange}
+            onChange={onTeamToWatchChange}
+          >
+            <ListboxSection title="Leaderboard">
+              {leaderBoard.map((team: Team, index: number) => (
+                <ListboxItem key={team.pk()} startContent={index + 1}>
+                  {team.name}
+                </ListboxItem>
+              ))}
+            </ListboxSection>
+          </Listbox>
+        </div>
+      )}
 
       {/*<TeamSearchBar*/}
       {/*  teams={raceSetup.teams}*/}
       {/*  selectedTeams={teamIdFilter}*/}
       {/*  tagsHash={tagsHash}*/}
-      {/*  isOpen={isOpen}*/}
-      {/*  onOpenChange={onOpenChange}*/}
+      {/*  isTeamSearchOpen={isTeamSearchOpen}*/}
+      {/*  onTeamSearchOpenChange={onTeamSearchOpenChange}*/}
       {/*  onTeamClick={onTeamClick}*/}
       {/*  onFilteredChange={setTeamIdFilterSearch}*/}
       {/*/>*/}
+
+      <TeamSearch
+        teams={raceSetup.teams}
+        classes={raceSetup.tags}
+        activeTeam={teamToWatch?.id}
+        isOpen={isTeamSearchOpen}
+        onOpenChange={onTeamSearchOpenChange}
+        onTeamClick={onTeamToWatchChange}
+      />
 
       <Slider
         classNames={{
@@ -665,7 +598,7 @@ const Race = () => {
         getValue={formatSliderValue}
         minValue={raceSetup.startInMilliseconds()}
         maxValue={raceSetup.stopInMilliseconds()}
-        value={time}
+        value={timeToWatchTs}
         step={6000}
         onChange={onTimeSliderChange}
       />

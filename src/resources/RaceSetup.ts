@@ -42,6 +42,7 @@ export class Team extends Entity {
   thumb: string = '';
   type: string = '';
   url: string = '';
+  moments: RaceMoment[];
 
   pk(): string {
     return `${this.id}`;
