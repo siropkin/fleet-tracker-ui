@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, useCallback } from 'react';
 import {
   Button,
   Chip,
@@ -8,13 +8,11 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Spacer,
 } from '@nextui-org/react';
 
 import { Tag, Team } from '@resources/RaceSetup';
 
 import { SearchIcon } from '@icons/SearchIcon';
-import { EyeIcon } from '@icons/EyeIcon';
 
 import { TeamCard } from './TeamCard';
 
@@ -97,6 +95,14 @@ export const TeamSearch = (props) => {
     }, []);
   }, [teamSearchText, teamSearchClass, teams, activeTeam]);
 
+  const doTeamClick = useCallback(
+    (team: Team) => {
+      onTeamClick(team);
+      onOpenChange();
+    },
+    [onTeamClick, onOpenChange],
+  );
+
   return (
     <Modal
       classNames={{
@@ -110,7 +116,7 @@ export const TeamSearch = (props) => {
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       // isDismissable={false}
-      // hideCloseButton
+      hideCloseButton
     >
       <ModalContent>
         {(onClose) => (
@@ -203,7 +209,7 @@ export const TeamSearch = (props) => {
                       // // isInWatchlist={isInWatchlist}
                       // onWatchlistButtonClick={onWatchlistButtonClick}
                       // onCardPress={onWatchlistButtonClick}
-                      onCardPress={() => onTeamClick(team)}
+                      onCardPress={() => doTeamClick(team)}
                     />
                   );
                 })}

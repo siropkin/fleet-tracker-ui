@@ -60,11 +60,15 @@ const formatSliderValue = (value: SliderValue) => {
   return new Date(v).toLocaleString();
 };
 
-const makeTeamMarkerIconHtml = (team: Team) => {
+const makeTeamMarkerIconHtml = (
+  team: Team,
+  color: string,
+  isSelected: boolean,
+) => {
   return renderToStaticMarkup(
     <div
-      style={{ backgroundColor: `#${team.colour}` }}
-      className="w-fit min-w-[50px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap text-medium text-white pr-6"
+      style={{ backgroundColor: color }}
+      className={`w-fit min-w-[50px] max-w-[300px] pl-0.5 pr-6 overflow-hidden text-ellipsis whitespace-nowrap text-white ${isSelected ? 'text-medium' : 'text-small'}`}
     >
       {team.name}
     </div>,
@@ -164,11 +168,14 @@ const Race = () => {
   }, [teamsToWatch]);
 
   const teamToWatch = useMemo(() => {
-    return teamsToWatch.find((team: Team) => team.id === teamToWatchId);
-  }, [teamToWatchId, teamsToWatch]);
+    return raceSetup.teams.find((team: Team) => team.id === teamToWatchId);
+  }, [teamToWatchId, raceSetup.teams]);
 
   const teamToWatchCurrentPosition = useMemo(() => {
-    return teamToWatch?.moments[teamToWatch.moments.length - 1];
+    if (!teamToWatch?.moments?.length) {
+      return null;
+    }
+    return teamToWatch?.moments[teamToWatch?.moments.length - 1];
   }, [teamToWatch?.moments]);
 
   const teamToWatchProgress = useMemo(() => {
@@ -198,7 +205,7 @@ const Race = () => {
       return 0;
     }
     return (distanceBetweenPositions / timeBetweenPositions) * 1000;
-  }, [teamToWatch.moments]);
+  }, [teamToWatch?.moments]);
 
   const teamToWatchLeaderBoardPosition = useMemo(() => {
     if (!teamToWatchId) {
@@ -211,7 +218,10 @@ const Race = () => {
     (value: Team) => {
       setSearchParams((prevValue) => {
         prevValue.set(TEAM_SEARCH_PARAM, `${value.id}`);
-        // prevValue.set(CLASS_SEARCH_PARAM, `${value.tags[0]}`);
+        const prevClass = parseInt(prevValue.get(CLASS_SEARCH_PARAM) ?? '');
+        if (!value.tags.includes(prevClass)) {
+          prevValue.set(CLASS_SEARCH_PARAM, `${value.tags[0]}`);
+        }
         return prevValue;
       });
     },
@@ -337,9 +347,10 @@ const Race = () => {
 
           const isSelected = teamToWatch?.id === team.id;
 
-          const radius = isSelected ? 8 : 4;
-          const color = isSelected ? `#${team.colour}` : 'gray';
-          const opacity = isSelected ? 1 : 0.3;
+          const radius = isSelected ? 10 : 6;
+          const color = isSelected ? `#${team.colour}` : '#787985';
+          // const opacity = isSelected ? 1 : 0.3;
+          const opacity = 1;
           const maxMomentsLength = isSelected ? 50 : 10;
           const moments = [...team.moments];
           if (!moments.length) {
@@ -370,40 +381,36 @@ const Race = () => {
 
           return (
             <Fragment key={team.pk() + isSelected}>
-              {isSelected && (
-                <Marker
-                  position={currentPositionLatLon}
-                  opacity={opacity}
-                  icon={L.divIcon({
-                    className: `text-xl font-bold text-white cursor-default`,
-                    // html: `<div style="width: 100%; background-color: ${teamColor}">${index + 1}</div>`,
-                    // iconSize: [34, 34],
-                    // iconAnchor: [17, 50],
-                    html: makeTeamMarkerIconHtml(team),
-                    // iconSize: [34, 34],
-                    iconAnchor: [-5, 40],
-                  })}
-                />
-              )}
+              {/*{isSelected && (*/}
+              <Marker
+                position={currentPositionLatLon}
+                // opacity={opacity}
+                icon={L.divIcon({
+                  className: `cursor-default`,
+                  // html: `<div style="width: 100%; background-color: ${teamColor}">${index + 1}</div>`,
+                  // iconSize: [34, 34],
+                  // iconAnchor: [17, 50],
+                  html: makeTeamMarkerIconHtml(team, color, isSelected),
+                  // iconSize: [34, 34],
+                  iconAnchor: [-5, 40],
+                })}
+                zIndexOffset={isSelected ? 1000 : 0}
+              />
+              {/*)}*/}
 
-              {!!currentPosition.distanceToFinish() && (
-                <Polyline
-                  positions={trackLatLon}
-                  color={color}
-                  opacity={opacity}
-                  fillOpacity={opacity}
-                  fillColor={color}
-                  weight={2}
-                />
-              )}
-
-              <CircleMarker
-                center={currentPositionLatLon}
-                radius={radius}
-                color={color}
+              <Marker
+                position={currentPositionLatLon}
+                // radius={radius}
+                icon={L.divIcon({
+                  className: `cursor-pointer`,
+                  html: `<div style="width: 100%; height: 100%; border-radius: 50%; background-color: ${color}"></div>`,
+                  iconSize: [radius * 2, radius * 2],
+                })}
+                // color={color}
                 opacity={opacity}
-                fillColor={color}
-                fillOpacity={opacity}
+                // fillColor={color}
+                // fillOpacity={opacity}
+                zIndexOffset={isSelected ? 999 : 0}
               >
                 <Popup>
                   <TeamCard
@@ -415,17 +422,28 @@ const Race = () => {
                     onCardPress={() => onTeamToWatchChange(team)}
                   />
                 </Popup>
-              </CircleMarker>
+              </Marker>
+
+              {!!currentPosition.distanceToFinish() && (
+                <Polyline
+                  positions={trackLatLon}
+                  color={color}
+                  opacity={opacity}
+                  fillOpacity={opacity}
+                  fillColor={color}
+                  weight={2}
+                />
+              )}
             </Fragment>
           );
         })}
       </MapContainer>
 
       {teamToWatch && (
-        <div className="absolute z-500 top-5 left-5 flex flex-col gap-8 max-h-[50%] overflow-hidden">
+        <div className="absolute z-500 top-5 left-5 flex flex-col gap-8 max-h-[50%] max-w-[15%] overflow-hidden">
           <div className="flex items-end gap-1">
             <div className="text-2xl uppercase">Pos</div>
-            <div className="text-8xl">{teamToWatchLeaderBoardPosition + 1}</div>
+            <div className="text-6xl">{teamToWatchLeaderBoardPosition + 1}</div>
             <div className="text-2xl">/</div>
             <div className="text-2xl">{leaderBoard.length}</div>
           </div>
@@ -460,7 +478,7 @@ const Race = () => {
         <div className="absolute z-500 top-5 right-5 flex flex-col">
           <div className="flex flex-row items-end  gap-1">
             <div className="text-2xl uppercase">Progress</div>
-            <div className="text-8xl">
+            <div className="text-6xl">
               {Math.round(teamToWatchProgress * 100)}%
             </div>
           </div>
@@ -471,7 +489,7 @@ const Race = () => {
         <div className="absolute z-500 bottom-5 right-5 flex flex-col">
           <div className="flex flex-row items-end  gap-1">
             <div className="text-2xl uppercase">Speed</div>
-            <div className="text-8xl">
+            <div className="text-6xl">
               {Math.round(teamToWatchSpeed * 10) / 10} kts
             </div>
           </div>
@@ -481,7 +499,7 @@ const Race = () => {
       <div className="absolute z-500 top-5 right-[50%] translate-x-[50%] flex flex-col gap-2">
         <div className="flex flex-row items-end">
           <Link
-            className="text-8xl"
+            className="text-6xl"
             href={raceSetup.logo.href}
             color="foreground"
             isExternal
@@ -565,7 +583,7 @@ const Race = () => {
         }}
         label="Time"
         aria-label="Time"
-        size="sm"
+        size="md"
         getValue={formatSliderValue}
         minValue={raceSetup.startInMilliseconds()}
         maxValue={raceSetup.stopInMilliseconds()}
