@@ -60,18 +60,27 @@ const formatSliderValue = (value: SliderValue) => {
   return new Date(v).toLocaleString();
 };
 
-const makeTeamMarkerIconHtml = (
+const makeTeamLabelMarker = (
   team: Team,
   color: string,
   isSelected: boolean,
 ) => {
   return renderToStaticMarkup(
     <div
-      style={{ backgroundColor: color }}
+      style={{ backgroundColor: color, boxShadow: `0 0 10px 0 ${color}` }}
       className={`w-fit min-w-[50px] max-w-[300px] pl-0.5 pr-6 overflow-hidden text-ellipsis whitespace-nowrap text-white ${isSelected ? 'text-medium' : 'text-small'}`}
     >
       {team.name}
     </div>,
+  );
+};
+
+const makeTeamMarker = (team: Team, color: string, isSelected: boolean) => {
+  return renderToStaticMarkup(
+    <div
+      style={{ backgroundColor: color, boxShadow: `0 0 10px 0 ${color}` }}
+      className="w-full h-full rounded-full"
+    />,
   );
 };
 
@@ -319,6 +328,7 @@ const Race = () => {
         />
 
         <Polygon
+          className="race-track"
           positions={courseMainNodes}
           fillRule="nonzero"
           opacity={0.6}
@@ -387,10 +397,7 @@ const Race = () => {
                 // opacity={opacity}
                 icon={L.divIcon({
                   className: `cursor-default`,
-                  // html: `<div style="width: 100%; background-color: ${teamColor}">${index + 1}</div>`,
-                  // iconSize: [34, 34],
-                  // iconAnchor: [17, 50],
-                  html: makeTeamMarkerIconHtml(team, color, isSelected),
+                  html: makeTeamLabelMarker(team, color, isSelected),
                   // iconSize: [34, 34],
                   iconAnchor: [-5, 40],
                 })}
@@ -403,7 +410,7 @@ const Race = () => {
                 // radius={radius}
                 icon={L.divIcon({
                   className: `cursor-pointer`,
-                  html: `<div style="width: 100%; height: 100%; border-radius: 50%; background-color: ${color}"></div>`,
+                  html: makeTeamMarker(team, color, isSelected),
                   iconSize: [radius * 2, radius * 2],
                 })}
                 // color={color}
@@ -432,6 +439,10 @@ const Race = () => {
                   fillOpacity={opacity}
                   fillColor={color}
                   weight={2}
+                  pathOptions={{
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }}
                 />
               )}
             </Fragment>
