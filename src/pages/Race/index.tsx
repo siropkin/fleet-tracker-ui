@@ -67,7 +67,7 @@ const makeTeamLabelMarker = (
 ) => {
   return renderToStaticMarkup(
     <div
-      style={{ backgroundColor: color, boxShadow: `0 0 10px 0 ${color}` }}
+      style={{ backgroundColor: color }}
       className={`w-fit min-w-[50px] max-w-[300px] pl-0.5 pr-6 overflow-hidden text-ellipsis whitespace-nowrap text-white ${isSelected ? 'text-medium' : 'text-small'}`}
     >
       {team.name}
@@ -78,7 +78,7 @@ const makeTeamLabelMarker = (
 const makeTeamMarker = (team: Team, color: string, isSelected: boolean) => {
   return renderToStaticMarkup(
     <div
-      style={{ backgroundColor: color, boxShadow: `0 0 10px 0 ${color}` }}
+      style={{ backgroundColor: color }}
       className="w-full h-full rounded-full"
     />,
   );
@@ -271,7 +271,7 @@ const Race = () => {
         currentPosition.lat,
         currentPosition.lon,
       );
-      map.flyTo(currentPositionLatLon, 10, { animate: false });
+      map.flyTo(currentPositionLatLon, map.getZoom(), { animate: false });
     },
     [map],
   );
