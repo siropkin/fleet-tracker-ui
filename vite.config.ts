@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import cesium from 'vite-plugin-cesium';
 import path from 'path';
 
 // https://vitejs.dev/config/
@@ -11,7 +10,10 @@ export default defineConfig({
       '@components': path.resolve(__dirname, './src/components'),
       '@pages': path.resolve(__dirname, './src/pages'),
       '@resources': path.resolve(__dirname, './src/resources'),
+      '@classes': path.resolve(__dirname, './src/classes'),
+      '@icons': path.resolve(__dirname, './src/icons'),
+      '@utils': path.resolve(__dirname, './src/utils'),
     },
   },
-  plugins: [react(),cesium()],
-})
+  plugins: [react()],
+});

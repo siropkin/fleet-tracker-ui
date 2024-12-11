@@ -1,22 +1,23 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { CacheProvider, AsyncBoundary } from "@data-client/react";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { CacheProvider, AsyncBoundary } from '@data-client/react';
+import { NextUIProvider } from '@nextui-org/react';
 
-import Home from "@pages/Home";
-import Race from "@pages/Race";
-import Error from "@pages/Error";
+import Home from '@pages/Home';
+import Race from '@pages/Race';
+import Error from '@pages/Error';
 
-import "./index.css";
+import './index.css';
 
 const router = createBrowserRouter([
   {
-    path: "/",
+    path: '/',
     element: <Home />,
     errorElement: <Error />,
   },
   {
-    path: "races/:id",
+    path: 'races/:id',
     element: <Race />,
     errorElement: <Error />,
   },
@@ -24,13 +25,12 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <CacheProvider>
-      <AsyncBoundary fallback="loading" errorComponent={Error}>
-        <div>
+    <NextUIProvider>
+      <CacheProvider>
+        <AsyncBoundary fallback="loading" errorComponent={Error}>
           <RouterProvider router={router} />
-        </div>
-
-      </AsyncBoundary>
-    </CacheProvider>
+        </AsyncBoundary>
+      </CacheProvider>
+    </NextUIProvider>
   </React.StrictMode>,
-)
+);

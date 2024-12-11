@@ -1,6 +1,42 @@
-html, body, #root {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   padding: 0;
   margin: 0;
 }
+
+/* Leaflet */
+.leaflet-popup-content-wrapper {
+  margin: 0;
+  padding: 0;
+  border-radius: 14px;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  padding: 0;
+  width: unset !important;
+  height: unset !important;
+}
+
+.leaflet-popup-close-button {
+  z-index: 1000;
+}
+
+/*path.race-track {*/
+/*  stroke-dasharray: 210;*/
+/*  stroke-dashoffset: 210;*/
+/*  animation: dash 10s forwards;*/
+/*}*/
+
+/*@keyframes dash {*/
+/*  to {*/
+/*    stroke-dashoffset: 0;*/
+/*  }*/
+/*}*/
